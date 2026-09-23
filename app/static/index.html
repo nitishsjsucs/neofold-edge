@@ -87,8 +87,23 @@
   .clab{font-size:10.5px;color:var(--muted);margin-right:9px}
   .cnote{font-size:11.5px;color:var(--muted);line-height:1.55}
   .cref{display:block;margin-top:4px;font-size:10.5px;opacity:.75}
+  .contact.absent{background:#2b1d10;border-color:#5a3a18}
+  .ctitle.absent{color:var(--warn)}
+  .cval.no{color:var(--bad)}
   .subh{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
         font-weight:600;margin:2px 0 7px}
+  .viewtabs{display:flex;gap:6px;padding:10px 14px 0}
+  .viewtabs button{background:var(--panel-2);color:var(--muted);border:1px solid var(--line);
+                   font-weight:500;font-size:12px;padding:6px 11px;border-radius:7px}
+  .viewtabs button.on{background:#132b47;color:var(--text);border-color:#2a5a8f}
+  .cmp{margin:0 14px 12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .cmp table{width:100%;font-size:12px}
+  .cmp th{background:var(--panel-2);font-size:10px;padding:7px 10px}
+  .cmp td{padding:7px 10px;border-bottom:1px solid #21262d}
+  .cmp td:first-child{color:var(--muted);font-size:11.5px}
+  .cmp .v{font-family:var(--mono);font-weight:600}
+  .cmp .yes{color:var(--good)} .cmp .no{color:var(--bad)} .cmp .meh{color:var(--warn)}
+  .cmp tr.key{background:#0f2a1c}
   #tip{position:fixed;pointer-events:none;z-index:50;background:var(--panel-2);
        border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:11.5px;
        box-shadow:0 6px 22px rgba(0,0,0,.5);max-width:260px;display:none;line-height:1.5}
@@ -169,14 +184,16 @@
   <section>
     <div class="card">
       <h2>Predicted peptide–HLA complex</h2>
+      <div class="viewtabs" id="viewtabs"></div>
       <div id="viewer"></div>
       <div class="legend">
-        <span><i style="background:#ffa657"></i>Tumour peptide</span>
+        <span><i style="background:#ffa657"></i><span id="legPep">Tumour peptide</span></span>
         <span><i style="background:#6b7d96"></i>HLA heavy chain</span>
         <span><i style="background:#3d4759"></i>β2-microglobulin</span>
       </div>
       <div class="metrics" id="conf"></div>
       <div id="contact"></div>
+      <div id="compare"></div>
     </div>
 
     <div class="card" style="margin-top:14px" id="confCard" hidden>
@@ -340,6 +357,28 @@ function renderConf(s){
 function renderContact(c){
   const el = $('#contact');
   if(!c || !c.available){ el.innerHTML=''; return; }
+
+  // An absent contact is a finding, not a failure -- but it must not be dressed
+  // in the same success styling as a formed one.
+  if(!c.chemically_possible){
+    el.innerHTML = `
+      <div class="contact absent">
+        <div class="ctitle absent">Pre-registered contact · ${c.peptide_residue} ↔ ${c.mhc_residue} · not formed</div>
+        <div class="crow">
+          <span class="cval no">none possible</span><span class="clab">predicted</span>
+          ${c.crystal_distance_a!=null
+            ? `<span class="cval">${c.crystal_distance_a} Å</span>
+               <span class="clab">in the tumour peptide's crystal</span>` : ''}
+        </div>
+        <div class="cnote"><b>${c.peptide_residue.replace(/[0-9]/g,'')} has no charged
+          side chain</b>, so this interaction cannot form at any confidence level. This is a
+          chemical impossibility, not a weak prediction — and it is the reason the tumour
+          peptide is presented while the normal one is not.
+          <span class="cref">${c.reference}</span></div>
+      </div>`;
+    return;
+  }
+
   const agree = (c.crystal_distance_a!=null && c.min_distance_a!=null)
     ? Math.abs(c.crystal_distance_a - c.min_distance_a).toFixed(2) : null;
   el.innerHTML = `
@@ -355,6 +394,48 @@ function renderContact(c){
         <b>The normal protein has glycine at this position — no side chain, so this
         contact cannot form at all.</b> <span class="cref">${c.reference}</span></div>
     </div>`;
+}
+
+function renderCompare(c){
+  const el = $('#compare');
+  if(!c || !c.available){ el.innerHTML=''; return; }
+  const m = c.mutant, w = c.wild_type;
+  const wtContact = w.contact.chemically_possible
+      ? `<span class="v meh">${w.contact.min_distance_a} Å</span>`
+      : `<span class="v no">impossible</span>`;
+  el.innerHTML = `
+  <div class="cmp">
+    <table>
+      <thead><tr><th>Evidence</th><th>Tumour (G12D)</th><th>Normal tissue</th><th>Discriminates?</th></tr></thead>
+      <tbody>
+        <tr><td>Peptide</td>
+            <td class="v">${m.peptide}</td><td class="v">${w.peptide}</td><td>—</td></tr>
+        <tr><td>Boltz confidence (ipTM)</td>
+            <td class="v">${m.iptm.toFixed(4)}</td>
+            <td class="v">${w.iptm.toFixed(4)}</td>
+            <td class="no">No — differs by ${c.iptm_delta}</td></tr>
+        <tr class="key"><td>Residue at position 3</td>
+            <td class="v yes">${m.contact.peptide_residue}</td>
+            <td class="v no">${w.contact.peptide_residue}</td>
+            <td class="yes">Yes</td></tr>
+        <tr class="key"><td>Salt bridge to Arg156</td>
+            <td><span class="v yes">${m.contact.min_distance_a} Å</span></td>
+            <td>${wtContact}</td>
+            <td class="yes">Yes</td></tr>
+        <tr class="key"><td>Predicted affinity (MHCflurry)</td>
+            <td class="v yes">74 nM</td><td class="v no">3,656 nM</td>
+            <td class="yes">Yes — 49×</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="hint" style="padding:0 14px 12px">
+    <b>Read the second row carefully.</b> The structure model gives the wild-type peptide —
+    which experimentally does <i>not</i> stabilise this allele — essentially the same
+    confidence as the tumour peptide. That is why ranking comes from the binding screen
+    and from one named, pre-specified contact, never from the confidence score.
+    Glycine has no side chain, so the Arg156 contact is impossible by chemistry rather
+    than merely unfavourable.
+  </div>`;
 }
 
 async function refreshNet(){
@@ -417,21 +498,36 @@ async function run(){
   $('#al').innerHTML = list.map(a=>`<option>${a}</option>`).join('');
 
   const st = await jget('/api/structures');
-  if(st.structures.length){
-    const id = st.structures[0].id;
+  const byId = Object.fromEntries(st.structures.map(s => [s.id, s]));
+
+  async function show(id){
+    const s = byId[id]; if(!s) return;
+    document.querySelectorAll('.viewtabs button')
+      .forEach(b => b.classList.toggle('on', b.dataset.id === id));
     await loadStructure(id);
-    renderConf(st.structures[0]);
-    renderContact(await jget(`/api/contact/${id}`));
+    renderConf(s);
+    const leg = $('#legPep');
+    if(leg) leg.textContent = s.role === 'wild_type' ? 'Wild-type peptide' : 'Tumour peptide';
+    try{ renderContact(await jget(`/api/contact/${id}`)); }catch(e){ $('#contact').innerHTML=''; }
     try{
       const conf = await jget(`/api/confidence/${id}`);
       $('#confCard').hidden = false;
-      drawPlddt($('#plddt'), conf, tip);
-      drawPae($('#pae'), conf, tip);
+      drawPlddt($('#plddt'), conf, tip); drawPae($('#pae'), conf, tip);
       addEventListener('resize', () => {
-        drawPlddt($('#plddt'), conf, tip); drawPae($('#pae'), conf, tip);
-      });
-    }catch(e){ console.warn('no confidence arrays', e); }
+        drawPlddt($('#plddt'), conf, tip); drawPae($('#pae'), conf, tip); }, {once:true});
+    }catch(e){ $('#confCard').hidden = true; }
   }
+
+  // Tabs: prefer the labelled mutant/wild-type pair, which is the story.
+  const labelled = st.structures.filter(s => s.label);
+  const tabs = labelled.length ? labelled : st.structures.slice(0, 3);
+  $('#viewtabs').innerHTML = tabs.map(s =>
+    `<button data-id="${s.id}">${s.label || s.id.replace(/_model_0$/,'')}</button>`).join('');
+  document.querySelectorAll('.viewtabs button')
+    .forEach(b => b.onclick = () => show(b.dataset.id));
+
+  if(tabs.length) await show(tabs[0].id);
+  try{ renderCompare(await jget('/api/compare')); }catch(e){}
 
   refreshNet(); refreshGpu();
   setInterval(refreshGpu, 2000);

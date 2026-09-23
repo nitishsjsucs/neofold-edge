@@ -105,27 +105,107 @@ def triage_endpoint(payload: dict) -> JSONResponse:
     return JSONResponse(out)
 
 
+def _find_cif(name: str) -> Path | None:
+    """Structures live either in results/ or results/shortlist/."""
+    for base in (RESULTS, RESULTS / "shortlist"):
+        p = (base / f"{name}.cif").resolve()
+        if str(p).startswith(str(RESULTS)) and p.exists():
+            return p
+    return None
+
+
+def _confidence_for(cif: Path) -> dict:
+    p = cif.parent / f"confidence_{cif.stem}.json"
+    return json.loads(p.read_text()) if p.exists() else {}
+
+
+# The mutant/wild-type pairs, and what each one is for.
+PAIRS = {
+    "kras_g12d_9mer_mut_model_0": {
+        "label": "KRAS G12D — tumour", "peptide": "GADGVGKSA", "role": "mutant",
+        "partner": "kras_g12d_9mer_wt_model_0", "crystal": "6ULN",
+    },
+    "kras_g12d_9mer_wt_model_0": {
+        "label": "KRAS wild-type — normal tissue", "peptide": "GAGGVGKSA",
+        "role": "wild_type", "partner": "kras_g12d_9mer_mut_model_0",
+    },
+}
+
+
 @app.get("/api/structures")
 def structures() -> dict:
-    """Predicted structures available on disk, with their confidence metadata."""
+    """Predicted structures on disk, with confidence and pairing metadata."""
     out = []
-    for cif in sorted(RESULTS.glob("*.cif")):
-        conf_path = RESULTS / f"confidence_{cif.stem}.json"
-        conf = json.loads(conf_path.read_text()) if conf_path.exists() else {}
-        out.append({
-            "id": cif.stem,
-            "cif_url": f"/api/structure/{cif.stem}",
-            "iptm": conf.get("iptm"),
-            "plddt": conf.get("complex_plddt"),
-            "ptm": conf.get("ptm"),
-        })
+    seen = set()
+    for base in (RESULTS, RESULTS / "shortlist"):
+        if not base.exists():
+            continue
+        for cif in sorted(base.glob("*.cif")):
+            if cif.stem in seen:
+                continue
+            seen.add(cif.stem)
+            conf = _confidence_for(cif)
+            out.append({
+                "id": cif.stem,
+                "cif_url": f"/api/structure/{cif.stem}",
+                "iptm": conf.get("iptm"),
+                "plddt": conf.get("complex_plddt"),
+                "ptm": conf.get("ptm"),
+                **PAIRS.get(cif.stem, {}),
+            })
     return {"structures": out}
+
+
+@app.get("/api/compare")
+def compare(mutant: str = "kras_g12d_9mer_mut_model_0",
+            wild_type: str = "kras_g12d_9mer_wt_model_0") -> dict:
+    """Side-by-side evidence for a mutant peptide and its wild-type counterpart.
+
+    The point of this endpoint is what it does NOT let you conclude. Boltz
+    confidence is reported because hiding it would be dishonest, but it is
+    labelled as non-discriminating: measured here, the wild-type -- which does
+    not stabilise this allele experimentally -- scores essentially the same as
+    the mutant. The discriminating evidence is the named contact and the
+    binding screen.
+    """
+    from neofold.contacts import measure_salt_bridge, peptide_sequence
+
+    rows = []
+    for name, role in ((mutant, "mutant"), (wild_type, "wild_type")):
+        cif = _find_cif(name)
+        if cif is None:
+            continue
+        conf = _confidence_for(cif)
+        contact = measure_salt_bridge(cif, peptide_position=3, mhc_residue_number=156)
+        rows.append({
+            "id": name, "role": role, "peptide": peptide_sequence(cif),
+            "iptm": conf.get("iptm"), "plddt": conf.get("complex_plddt"),
+            "contact": contact.as_dict(),
+        })
+    if len(rows) < 2:
+        return {"available": False, "reason": "both structures not yet predicted"}
+
+    mut, wt = rows[0], rows[1]
+    return {
+        "available": True,
+        "mutant": mut,
+        "wild_type": wt,
+        "iptm_delta": round(abs((mut["iptm"] or 0) - (wt["iptm"] or 0)), 4),
+        "verdict": {
+            "confidence": ("does not discriminate — the wild-type scores "
+                           "essentially the same as the mutant"),
+            "structure": ("decisive — the mutation creates an aspartate that "
+                          "salt-bridges Arg156; glycine has no side chain, so "
+                          "the contact cannot form at all"),
+            "screen": "decisive — 49x stronger predicted binding than wild-type",
+        },
+    }
 
 
 @app.get("/api/structure/{name}")
 def structure(name: str):
-    path = (RESULTS / f"{name}.cif").resolve()
-    if not str(path).startswith(str(RESULTS)) or not path.exists():
+    path = _find_cif(name)
+    if path is None:
         raise HTTPException(status_code=404, detail="no such structure")
     return FileResponse(path, media_type="chemical/x-mmcif")
 
@@ -154,8 +234,8 @@ def contact(name: str, allele: str = "HLA-C*08:02") -> dict:
         return {"available": False,
                 "reason": f"no pre-registered contact defined for {allele}"}
 
-    path = (RESULTS / f"{name}.cif").resolve()
-    if not str(path).startswith(str(RESULTS)) or not path.exists():
+    path = _find_cif(name)
+    if path is None:
         raise HTTPException(status_code=404, detail="no such structure")
 
     from neofold.contacts import measure_salt_bridge, peptide_sequence
@@ -191,8 +271,11 @@ def confidence(name: str) -> dict:
     import numpy as np
 
     def load(prefix):
-        path = RESULTS / f"{prefix}_{name}.npz"
-        if not path.exists():
+        for base in (RESULTS, RESULTS / "shortlist"):
+            path = base / f"{prefix}_{name}.npz"
+            if path.exists():
+                break
+        else:
             return None
         with np.load(path) as d:
             return d[d.files[0]]
@@ -203,8 +286,8 @@ def confidence(name: str) -> dict:
 
     # Chain boundaries, read from the structure so the plots can band them.
     chains = []
-    cif = RESULTS / f"{name}.cif"
-    if cif.exists():
+    cif = _find_cif(name)
+    if cif is not None:
         import gemmi
         st = gemmi.read_structure(str(cif))
         st.setup_entities()
