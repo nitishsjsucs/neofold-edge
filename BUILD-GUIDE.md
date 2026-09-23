@@ -171,6 +171,8 @@ I ran a deliberate negative control: the CMV epitope `NLVPMVATV` on its **correc
 2. **MHCflurry does the discrimination.** Boltz is the *explanation and visualization* layer.
 3. **Say this out loud in the pitch.** It is a credibility asset: it shows you validated your own tool. A sharp judge may probe exactly here, and "we tested that and here are the numbers" is a much better answer than being surprised.
 
+> ⚠️ **Word this carefully.** Say confidence is **"weak and unreliable for this purpose"**, *not* "meaningless". Our negative control is n=1, and the published position (Motmaen et al.) is that confidence gives *some* discrimination. The true, narrow claim is damning enough, and the overclaim is the one thing here a sharp judge could actually break.
+
 Supporting context from the research: the best published pro-structure neoantigen result drops from AUC 0.73 in-sample to **0.60 held-out**; the TESLA consortium found only **37/608 (6%)** predicted neoantigens were immunogenic. Structure is not a validated discriminator, and you should not imply it is.
 
 ---
@@ -228,6 +230,58 @@ MHCflurry 2.2.0 (PyTorch backend, installs clean on ARM64), `HLA-C*08:02`, 38 pe
 This is the demo's real story: **a single G>A substitution creates a peptide the immune system can see, and the normal version of that protein is invisible.** That is the whole premise of a personalized cancer vaccine, shown with measured numbers on-device, against epitopes independently published in *NEJM* and *PNAS*.
 
 Always show the wild-type control. It is the difference between "the model gave us a number" and "the mutation is why this candidate exists."
+
+---
+
+## 6C. The proposed additions, assessed
+
+Three additions were proposed on top of the working pipeline. Two are worth building, one is not.
+
+### ❌ Multi-seed Boltz ensembles — do NOT build
+
+The idea was to run Boltz several times per candidate and use the spread between predictions as an uncertainty signal. **Reading the Boltz source kills it:**
+
+- In `boltz2.py` the **trunk runs once**; `s_trunk`/`s_inputs` are `repeat_interleave`d across diffusion samples. The only difference between samples is `torch.randn` noise in `diffusionv2.py`.
+- `inferencev2.py` **hard-codes `seed = 42`** for the featurizer RNG, so `--seed` never reaches MSA subsampling — it only touches the torch RNG.
+- Therefore **`--seed S` and `--diffusion_samples N` vary the identical quantity**, and multi-seed is strictly dominated at N× the cost.
+
+The AF2 multi-seed folklore does not transfer: AF2 pairs seeds with MSA subsampling and inference dropout, and Boltz-2 does neither.
+
+Critically, **ensemble spread would almost certainly NOT have caught our wrong-allele error** — that failure lives in the trunk, and the samples do not sample the trunk. Spread measures *where atoms land given the model already decided the peptide is in the groove*. Presenting it as uncertainty about *whether the peptide binds* would be the single biggest honesty trap in this project.
+
+**Ship it as a pre-registered negative result instead.** "We tested whether ensemble spread adds information, read the architecture, and concluded it cannot — here's why" is a better slide than a chart that means nothing. If you want the empirical version, a 2×2 allele swap (`NLVPMVATV` and `KLGGALQAK`, each on A\*02:01 and A\*03:01) settles it in ~25 minutes.
+
+### ✅ Tumour vs normal side-by-side — build it, but let chemistry carry it
+
+The naive version is false: Boltz will produce a confident, plausible pose for the wild-type peptide too, so "mutant looks good / wild-type looks bad" would not survive scrutiny.
+
+**This case has a real discriminator, and I verified it.** HLA-C\*08:02 prefers **Asp at peptide position 3** (Rasmussen, *J Immunol* 2014). G12D is precisely what puts Asp at p3 in `GADGVGKSA`, and crystal structure 6ULN shows that p3 Asp salt-bridging **Arg156** in the D pocket. Measured with `neofold/contacts.py`:
+
+| Structure | p3 residue | Distance to Arg156 | Salt bridge |
+|---|---|---|---|
+| Crystal 6ULN | ASP3 | **2.73 Å** | yes |
+| Boltz prediction | ASP3 | **2.52 Å** | yes |
+| Wild-type (`GAGGVGKSA`) | **Gly** | — | **impossible** |
+
+Two things make this honest rather than fishing: the contact was **specified in advance from an experimental structure**, and the wild-type failure is **chemical, not predictive** — glycine has no side chain, so the interaction cannot exist at any confidence level.
+
+**Caption to use:** *"The G12D substitution places an aspartate at peptide position 3, where HLA-C\*08:02 has a charged pocket. In the crystal structure that aspartate forms a 2.7 Å salt bridge to Arg156; our local prediction reproduces it at 2.5 Å. The normal protein has glycine here — no side chain, no contact possible."*
+
+### ⚠️ OpenMM stability test — feasible, but frame it as a negative filter only
+
+Verdict: **GO**, with a downgraded timescale.
+
+- OpenMM now publishes **first-party PyPI aarch64 wheels** (`openmm-8.6.1-cp312-...-aarch64`, plus `openmm_cuda_13`). No conda, no sudo, no compiling — this inverts the usual "OpenMM is conda-only" assumption.
+- **sm_121 should work** for a structural reason: OpenMM generates kernels at runtime via NVRTC rather than shipping pre-compiled fatbins, which is the root cause of every other sm_121 failure.
+- **Install into a separate venv** — `openmm[cuda13]` drags in its own `nvidia-*` stack that would fight the Boltz environment's.
+- **Pin `nvidia-cuda-nvrtc==13.0.88`.** CUDA minor-version compatibility explicitly excludes PTX JIT, and the default pull (13.4.x) can emit PTX a 13.0 driver rejects.
+- **Budget ~0.5 ns, not 1–3 ns**, plus 20–65 s fixed NVRTC compilation overhead — so batch all candidates in one process.
+
+**The honesty limit is severe and must be stated.** The largest relevant study (2,883 HLA-A2 peptides, 200 ns each) got AUC 0.81 from MD features versus 0.80 from sequence alone — and discarded its first 30 ns as equilibration, roughly 60× your entire production run. Measured pMHC half-lives are in *hours*; you would sample ~10⁻¹³ of that.
+
+**Defensible:** "physics immediately rejects this pose." **Not defensible:** any claim about stability, affinity or immunogenicity.
+
+**Kill criterion:** if a calibration run reports under 150 ns/day, cut MD and spend the time on the demo.
 
 ---
 

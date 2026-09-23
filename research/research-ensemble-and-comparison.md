@@ -236,7 +236,7 @@ Your negative control guarantees that Boltz will return a confident, plausible, 
 
 **The chain of evidence:**
 
-1. **HLA-C\*08:02 has a strong Asp anchor at p3.** Rasmussen et al., *J Immunol* 193(10):4790–4802 (2014), doi:10.4049/jimmunol.1401689 (<https://pmc.ncbi.nlm.nih.gov/articles/PMC4226424/>): *"HLA-C\*04:01, -C\*05:01, and -C\*08:02 share a strong preference for Asp"*, with P2 only an auxiliary Ala/Ser preference (*"HLA-C\*05:01 and HLA-C\*08:02 show auxiliary preference for Ala and Ser in position 2"*) and a shared *"Tyr9, Ala24, Tyr99 motif"*.
+1. **HLA-C\*08:02 has a strong Asp anchor at p3.** Rasmussen et al., *J Immunol* 193(10):4790–4802 (2014), doi:10.4049/jimmunol.1401689 (<https://pmc.ncbi.nlm.nih.gov/articles/PMC4226424/>): *"HLA-C\*04:01, -C\*05:01, and -C\*08:02 share a strong preference for Asp"*, with P2 only an auxiliary Ala/Ser preference (*"HLA-C\*05:01 and HLA-C\*08:02 show auxiliary preference for Ala and Ser in position 2"*) and a shared *"Tyr9, Ala24, Tyr99 motif"*. ⚠️ The Asp quote as extracted does not itself name the position — the surrounding text and a secondary summary place it at **p3** ("the strong Asp anchor residue in P3"). **Open the paper's motif figure and confirm p3 before you put it on a slide.** Everything downstream depends on this one position, and it is a 5-minute check.
 
 2. **KRAS G12D puts Asp exactly at peptide position 3.** KRAS residues 10–18 = G-A-**G**-G-V-G-K-S-A; with G12D this becomes **GADGVGKSA** — the mutated residue is the third. (Same for the 10-mer GADGVGKSAL, residues 10–19. The other published epitope VVGADGVGKS, residues 8–17, puts it at p5 instead — see the warning below.)
 
@@ -264,7 +264,9 @@ Conventional salt-bridge cutoff: **≤ 4.0 Å** between the charged groups (Barl
 
 ### 2.4 What NOT to measure — the over-interpretation list
 
-Do not compute, display, or mention any of the following as evidence of binding:
+Do not compute, display, or mention any of the following as evidence of binding.
+
+> ⚠️ **How I reached this list:** it is a **deduction** from Motmaen's verified finding, not a set of papers that each individually tested SASA or BSA on predicted pMHC structures. The deduction: *if the model docks non-binding peptides into the groove, then every feature derived from "peptide sits in groove" is contaminated by the model's prior and cannot discriminate.* I consider that sound and I'd defend it on stage — but if a judge asks "is there a paper showing BSA specifically fails?", the honest answer is *"not one I can cite; this follows from the docking behaviour Motmaen documented."*
 
 | Feature | Why it fails here |
 |---|---|
@@ -272,9 +274,9 @@ Do not compute, display, or mention any of the following as evidence of binding:
 | **Buried surface area of the interface** | Same failure, same reason. Both peptides will show a large, similar BSA because both were placed in the groove. |
 | **Distance of anchor side chains to B/F pocket floors** (generically) | Same. The exception is §2.3, where the target contact was **prespecified from a crystal structure** rather than discovered post hoc. |
 | **Groove occupancy / peptide bulge** | Mikhaylov & Levine note *"the challenge lies in modeling the peptide middle"* — the central bulge is the *least* reliably predicted part. Never build a claim on it. |
-| **Per-residue pLDDT differences between WT and MUT** | Same broken head as ipTM. Your negative control disqualified it. |
+| **Per-residue pLDDT differences between WT and MUT** | Same confidence head your negative control just caught inverting. Too weak to carry a claim. |
 
-**Also: do not claim structure-based scoring beats sequence-based scoring.** The literature currently says the opposite (Motmaen, PNAS 2023: discrimination "considerably poorer than NetMHCpan"). Your pipeline does not beat MHCflurry at ranking; it *uses* MHCflurry at ranking and adds structure for mechanism and for a visual a clinician can read. That is a defensible architecture. Claiming more is the fastest way to lose the room.
+**Also: do not claim structure-based scoring beats sequence-based scoring.** The literature currently says the opposite — Motmaen et al. found raw AlphaFold confidence gave only *"some discrimination"* of binders from non-binders and had to fine-tune a classifier to approach NetMHCpan. Your pipeline does not beat MHCflurry at ranking; it *uses* MHCflurry at ranking and adds structure for mechanism and for a visual a clinician can read. That is a defensible architecture. Claiming more is the fastest way to lose the room.
 
 ### 2.5 Panel layout and literal caption text
 
@@ -464,34 +466,34 @@ Because they are the same thing at higher cost. `--seed` sets the global torch R
 It invalidates using structure *confidence* as a binding signal — which is why we don't. It does not invalidate the *geometry*: our peptide backbone RMSD against PDB 6ULN is 0.56 Å single-sequence and 0.486 Å with MSA, against a published class-I median of 0.77 Å. The structure is accurate. It just isn't discriminative. Those are different properties, and Motmaen et al. found the same thing in PNAS in 2023.
 
 **Q5. "You tested one peptide pair. One inverted result doesn't prove the metric is broken."**
-Agreed, and we don't claim it's broken — we claim it's weak and unreliable, which is also what the literature says: Motmaen et al. found confidence gave *"some discrimination"* of binders from non-binders, but *"considerably poorer than NetMHCpan."* Our single pair is an existence proof that the ordering can invert, which is enough to disqualify it as a decision rule. We then took it to four pairs with a 2×2 allele swap — same two CMV epitopes, both alleles, each on its correct and its wrong partner.
+Agreed, and we don't claim it's broken — we claim it's weak and unreliable, which is also what the literature says: Motmaen et al. found raw AlphaFold confidence gave only *"some discrimination"* of binders from non-binders, and had to fine-tune a separate classifier onto the PAE to approach NetMHCpan. Our single pair is an existence proof that the ordering can invert, which is enough to disqualify it as a decision rule. We then took it to four pairs with a 2×2 allele swap — same two CMV epitopes, both alleles, each on its correct and its wrong partner.
 🚫 **Do not say** "Boltz confidence is meaningless" or "ipTM has zero discriminative power." Neither is true, and the true version is damning enough.
 
 **Q6. "Isn't the wild-type structure in your comparison panel also confident? Aren't you showing me a picture of something that doesn't happen?"**
 Yes, and it's on the slide — ipTM 0.98 for both, labelled. The binding evidence is MHCflurry's 49× affinity difference. The structure shows the mechanism: HLA-C\*08:02 prefers aspartate at p3, and the 2.01 Å crystal structure of this complex shows the p3 Asp–Arg156 salt bridge. Wild-type KRAS has glycine there and physically cannot make it.
 🚫 **Do not claim** the wild-type structure "looks worse" or that the model "rejected" it.
 
-**Q6. "You measured a salt-bridge distance from a predicted structure. Isn't that circular?"**
+**Q7. "You measured a salt-bridge distance from a predicted structure. Isn't that circular?"**
 It would be if we'd gone looking for a feature that matched our story. We didn't — the contact was specified in advance by a published crystal structure of this exact complex, and we're asking whether our prediction reproduces it. That's validation, not inference. We deliberately do *not* report anchor burial, buried surface area, or groove occupancy, because those are the ones that would be circular: a model that docks every peptide into the groove will show good burial for a non-binder too.
 
-**Q7. "Does this generalise beyond KRAS G12D?"**
+**Q8. "Does this generalise beyond KRAS G12D?"**
 The affinity half does. The crystallographic half does not — that panel works because a 2.01 Å structure of this complex exists. For a novel patient mutation we'd have the MHCflurry numbers and the pocket-motif reasoning, but no crystallographic confirmation. We label that panel a validated exemplar for exactly this reason.
 🚫 **Do not** present the KRAS panel as typical pipeline output.
 
-**Q8. "If MHCflurry does the discriminating, what is the structure prediction actually for?"**
+**Q9. "If MHCflurry does the discriminating, what is the structure prediction actually for?"**
 Three things, none of which is ranking. Mechanism — it shows *why* a peptide binds, at an atomic contact a clinician can look at. Downstream capability — TCR modelling and structure-based design need a structure and a sequence score cannot provide one. And falsifiability — we can check the predicted pose against a crystal structure, which is how we caught that confidence doesn't discriminate.
 🚫 **Do not claim** structure-based scoring outperforms NetMHCpan/MHCflurry for ranking. The published evidence says the opposite.
 
-**Q9. "Your funnel says 38,000 peptides down to 760. That's a 2% cut — but you filtered on 2nd percentile rank. Isn't that just arithmetic?"**
+**Q10. "Your funnel says 38,000 peptides down to 760. That's a 2% cut — but you filtered on 2nd percentile rank. Isn't that just arithmetic?"**
 Correct, and that step is arithmetic, not selectivity — a percentile cut retains its percentile by construction. The selective step is the next one: we require the mutant to bind *and* the wild-type counterpart not to. That differential filter is what makes this personalised rather than a lookup, and it's what the tumour-vs-normal panel illustrates.
 
-**Q10. "How much of this demo actually ran on stage?"**
+**Q11. "How much of this demo actually ran on stage?"**
 The MHCflurry screen over [38,000 / 9,500] peptides, and one Boltz fold in 58 seconds — both live, both timed in front of you. Four folds were precomputed, with the same command on the same box; five at 58 seconds is 4 minutes 50, which doesn't fit in a 4-minute slot. We'd rather tell you which 58 seconds were real than imply all of it was.
 
-**Q11. "How do you know 58 seconds is representative and not a warm-cache best case?"**
+**Q12. "How do you know 58 seconds is representative and not a warm-cache best case?"**
 [Answer from your own measurements — state whether the 58 s includes model load, and report n runs and the spread. If you have not measured this, measure it before Saturday; it is a 5-minute job and it is the one number your whole hardware argument rests on.]
 
-**Q12. "You have no stability predictor. Doesn't affinity alone overcall?"**
+**Q13. "You have no stability predictor. Doesn't affinity alone overcall?"**
 *If you shipped TLStab:* We do — TLStab from the Kavraki Lab, published in Immunoinformatics in 2024, which predicts half-life directly. We chose it over NetMHCstabpan because NetMHCstabpan ships no ARM64 binary and is trade-secret-licensed and non-redistributable, which doesn't fit an offline ARM box or the open-licensing argument we're making about Boltz.
 *If you didn't:* We don't, and it's a real gap. NetMHCstabpan is the standard but it has no aarch64 build and its wrapper hard-fails on this hardware. We were careful not to substitute MHCflurry's presentation score for it — that's a three-parameter regression over affinity and antigen processing, not stability, and conflating them would be exactly the kind of thing we've tried not to do.
 🚫 **Do not claim** MHCflurry's presentation score is a stability or half-life measurement.
