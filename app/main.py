@@ -122,19 +122,19 @@ def _confidence_for(cif: Path) -> dict:
 # The mutant/wild-type pairs, and what each one is for.
 PAIRS = {
     "kras_g12d_9mer_mut_model_0": {
-        "label": "KRAS G12D — tumour", "peptide": "GADGVGKSA", "role": "mutant",
+        "order": 1, "label": "KRAS G12D — tumour", "peptide": "GADGVGKSA", "role": "mutant",
         "partner": "kras_g12d_9mer_wt_model_0", "crystal": "6ULN",
     },
     "kras_g12d_9mer_wt_model_0": {
-        "label": "KRAS wild-type — normal tissue", "peptide": "GAGGVGKSA",
+        "order": 2, "label": "KRAS wild-type — normal tissue", "peptide": "GAGGVGKSA",
         "role": "wild_type", "partner": "kras_g12d_9mer_mut_model_0",
     },
     "kit_d816v_mut_model_0": {
-        "label": "KIT D816V — tumour", "peptide": "ICDFGLARV", "role": "mutant",
+        "order": 3, "label": "KIT D816V — tumour", "peptide": "ICDFGLARV", "role": "mutant",
         "partner": "kit_d816v_wt_model_0",
     },
     "kit_d816v_wt_model_0": {
-        "label": "KIT wild-type", "peptide": "ICDFGLARD", "role": "wild_type",
+        "order": 4, "label": "KIT wild-type", "peptide": "ICDFGLARD", "role": "wild_type",
         "partner": "kit_d816v_mut_model_0",
     },
 }
@@ -348,6 +348,57 @@ def confidence(name: str) -> dict:
         out["pae"] = [[round(float(v), 1) for v in row] for row in pae]
         out["pae_max"] = round(float(pae.max()), 1)
     return out
+
+
+@app.get("/api/benchmark")
+def benchmark() -> dict:
+    """Measured single-node performance, plus clearly-separated projections.
+
+    Everything under "measured" was timed on the Nano. Everything under
+    "projected" is arithmetic on those measurements -- we only ever had one
+    Nano, so no multi-node number here was observed.
+    """
+    import statistics
+    path = ROOT / "benchmarks" / "measured.json"
+    if not path.exists():
+        return {"available": False}
+    d = json.loads(path.read_text())
+
+    full = [r["wall_s"] for r in d["runs"] if r["msa"] is True]
+    mean = statistics.mean(full)
+    overhead = d["stage_split"]["fixed_overhead_s"]
+
+    return {
+        "available": True,
+        "hardware": d["hardware"],
+        "telemetry": d["telemetry_during_inference"],
+        "screening": d["screening_stage"],
+        "measured": {
+            "runs": d["runs"],
+            "n_full_setting_runs": len(full),
+            "mean_wall_s": round(mean, 1),
+            "stdev_wall_s": round(statistics.stdev(full), 1),
+            "candidates_per_hour": round(3600 / mean),
+            "fixed_overhead_s": overhead,
+            "overhead_fraction_pct": round(100 * overhead / mean),
+        },
+        "projected": {
+            "note": "PROJECTED from measured single-node throughput. Not observed.",
+            "basis": d["projections"]["basis"],
+            "assumptions": d["projections"]["assumptions"],
+            "erosion_factors": d["projections"]["erosion_factors"],
+            "nodes": [
+                {"nodes": n, "candidates_per_hour": round(3600 / mean * n),
+                 "measured": n == 1}
+                for n in (1, 2, 4)
+            ],
+            "batched_single_node": {
+                "candidates_per_hour": round(3600 / (mean - overhead)),
+                "note": ("if jobs share one process the ~32 s model load is paid "
+                         "once rather than per candidate -- projected, not measured"),
+            },
+        },
+    }
 
 
 @app.get("/api/gpu")

@@ -227,3 +227,46 @@ export function drawLandscape(container, rows, tip, onPick){
 }
 
 export const TIER_COLOURS = STATUS;
+
+/* ------------------------------------------------- measured vs projected */
+export function drawScaling(container, b, tip){
+  container.innerHTML = '';
+  const nodes = b.projected.nodes;
+  const w = container.clientWidth || 380, h = 190, padL = 46, padB = 34;
+  const pw = w - padL - 16, ph = h - padB - 18;
+  const maxY = Math.max(...nodes.map(n => n.candidates_per_hour)) * 1.15;
+  const X = i => padL + (i + 0.5) * (pw / nodes.length);
+  const Y = v => 18 + (1 - v / maxY) * ph;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+  for(const g of [0, maxY/2, maxY]){
+    svg.appendChild(el('line', {x1:padL, x2:padL+pw, y1:Y(g), y2:Y(g),
+                                stroke:INK.grid, 'stroke-width':1}));
+    svg.appendChild(text(padL-6, Y(g)+3, Math.round(g), {anchor:'end', size:9}));
+  }
+
+  const bw = Math.min(56, pw / nodes.length - 16);
+  nodes.forEach((n, i) => {
+    const measured = n.measured;
+    const x = X(i) - bw/2, y = Y(n.candidates_per_hour);
+    // Measured bars are solid; projections are hollow with a dashed outline,
+    // so the distinction survives a photograph of a slide.
+    const r = el('rect', {x, y, width:bw, height:Y(0)-y, rx:4,
+      fill: measured ? '#2a78d6' : 'none',
+      stroke: measured ? 'none' : '#2a78d6',
+      'stroke-width': measured ? 0 : 2,
+      'stroke-dasharray': measured ? '' : '5 3', style:'cursor:pointer'});
+    r.addEventListener('mousemove', ev => tip(ev,
+      `<b>${n.candidates_per_hour} candidates/hour</b>${n.nodes} Nano${n.nodes>1?'s':''}`
+      + `<i>${measured ? 'measured on hardware' : 'projected from measured single-node throughput'}</i>`));
+    r.addEventListener('mouseleave', () => tip(null));
+    svg.appendChild(r);
+    svg.appendChild(text(X(i), Y(0)+15, `${n.nodes} node${n.nodes>1?'s':''}`,
+                         {anchor:'middle', size:10}));
+    svg.appendChild(text(X(i), y-6, n.candidates_per_hour,
+                         {anchor:'middle', size:11, weight:600,
+                          fill: measured ? INK.primary : INK.secondary, mono:true}));
+  });
+  svg.appendChild(text(padL, 10, 'candidates / hour', {size:9.5}));
+  container.appendChild(svg);
+}

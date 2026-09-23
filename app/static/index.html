@@ -198,6 +198,19 @@
       <div id="compare"></div>
     </div>
 
+    <div class="card" style="margin-top:14px" id="benchCard" hidden>
+      <h2>Throughput on one Nano</h2>
+      <div class="body" style="padding-bottom:6px">
+        <div class="metrics" id="benchStats" style="border-top:0;padding:0 0 12px"></div>
+        <div id="scaling"></div>
+        <div class="legend" style="padding:8px 0 0">
+          <span><i style="background:#2a78d6"></i>Measured</span>
+          <span><i style="background:transparent;border:2px dashed #2a78d6;width:11px;height:11px"></i>Projected</span>
+        </div>
+        <div class="hint" id="benchNote" style="padding:8px 0 0"></div>
+      </div>
+    </div>
+
     <div class="card" style="margin-top:14px" id="confCard" hidden>
       <h2>Model confidence</h2>
       <div class="body" style="padding-bottom:8px">
@@ -237,7 +250,7 @@
 <div id="tip"></div>
 <script src="/static/vendor/molstar.js"></script>
 <script type="module">
-import { drawPae, drawPlddt, drawLandscape } from '/static/charts.js';
+import { drawPae, drawPlddt, drawLandscape, drawScaling } from '/static/charts.js?v=3';
 
 const $ = s => document.querySelector(s);
 
@@ -532,7 +545,8 @@ async function run(){
   }
 
   // Tabs: prefer the labelled mutant/wild-type pair, which is the story.
-  const labelled = st.structures.filter(s => s.label);
+  const labelled = st.structures.filter(s => s.label)
+                     .sort((a,b) => (a.order||99) - (b.order||99));
   const tabs = labelled.length ? labelled : st.structures.slice(0, 3);
   $('#viewtabs').innerHTML = tabs.map(s =>
     `<button data-id="${s.id}">${s.label || s.id.replace(/_model_0$/,'')}</button>`).join('');
@@ -541,6 +555,30 @@ async function run(){
 
   if(tabs.length) await show(tabs[0].id);
   try{ renderCompare(await jget('/api/compare')); }catch(e){}
+
+  try{
+    const b = await jget('/api/benchmark');
+    if(b.available){
+      $('#benchCard').hidden = false;
+      const m = b.measured;
+      $('#benchStats').innerHTML = [
+        [m.mean_wall_s+' s', 'per candidate'],
+        ['±'+m.stdev_wall_s+' s', 'over '+m.n_full_setting_runs+' runs'],
+        [m.candidates_per_hour, 'candidates/hour'],
+        [b.telemetry.gpu_utilisation_peak_pct+'%', 'peak GPU'],
+        [b.telemetry.power_peak_w+' W', 'peak power'],
+      ].map(([v,k]) => `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+      drawScaling($('#scaling'), b, tip);
+      $('#benchNote').innerHTML =
+        `Single-node figures are <b>measured on this hardware</b> (${m.n_full_setting_runs} full-setting runs,
+         383-residue complex, cached MSA). Multi-node figures are <b>projected</b> by multiplying
+         measured throughput — we had one Nano, so no multi-node number was observed.
+         Candidates are independent jobs, which is what makes the projection reasonable;
+         it would erode from queue overhead, storage I/O and sustained thermal behaviour.
+         <b>${m.overhead_fraction_pct}% of each job is fixed model-load overhead</b>, so batching
+         candidates into one process should roughly double single-node throughput.`;
+    }
+  }catch(e){ console.warn('no benchmark', e); }
   // The comparison table is specific to the KRAS pair; hide it on other tabs.
   document.querySelectorAll('.viewtabs button').forEach(b => {
     const prev = b.onclick;

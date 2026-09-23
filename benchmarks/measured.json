@@ -1,0 +1,75 @@
+{
+  "_comment": [
+    "Every number in 'runs' was MEASURED on the HP ZGX Nano (GB10, aarch64,",
+    "CUDA 13, driver 580.173.02) during development on 2026-09-23. Nothing here",
+    "is estimated. Projections live in a separate block and are labelled.",
+    "Settings unless stated: --recycling_steps 3 --diffusion_samples 1",
+    "--sampling_steps 200 --num_workers 0, mmCIF output."
+  ],
+  "hardware": {
+    "device": "NVIDIA GB10 (Grace Blackwell)",
+    "host": "HP ZGX Nano, Ubuntu 24.04.5, aarch64",
+    "driver": "580.173.02",
+    "cuda": "13.0",
+    "unified_memory_gb": 121,
+    "cpu_cores": 20
+  },
+  "telemetry_during_inference": {
+    "gpu_utilisation_peak_pct": 96,
+    "power_peak_w": 38,
+    "power_idle_w": 3.5,
+    "temperature_peak_c": 46,
+    "process_gpu_memory_mib": 2304,
+    "note": "nvidia-smi memory.total reports N/A on GB10 (unified memory); per-process memory via --query-compute-apps works"
+  },
+  "raw_compute": {
+    "bf16_matmul_tflops": 53.4,
+    "note": "8192^3 bf16 matmul, sustained over 30 iterations"
+  },
+  "runs": [
+    {"label": "G-domain crop, single-sequence", "residues": 189, "msa": false, "recycling": 3, "sampling": 200, "wall_s": 44},
+    {"label": "full complex, single-sequence, minimal sampling", "residues": 383, "msa": false, "recycling": 0, "sampling": 10, "wall_s": 39},
+    {"label": "full complex, single-sequence", "residues": 383, "msa": false, "recycling": 3, "sampling": 200, "wall_s": 55},
+    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 63},
+    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 66},
+    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 65},
+    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 62},
+    {"label": "shortlist: KRAS G12D 10-mer mutant", "residues": 384, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 66.1},
+    {"label": "shortlist: KRAS G12D 9-mer mutant", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 66.3},
+    {"label": "shortlist: KRAS wild-type 9-mer", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 61.8},
+    {"label": "offline proof (all egress blocked)", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 64},
+    {"label": "MSA generated online via ColabFold server", "residues": 383, "msa": "generated", "recycling": 3, "sampling": 200, "wall_s": 132},
+    {"label": "MSA generation, second allele", "residues": 383, "msa": "generated", "recycling": 3, "sampling": 200, "wall_s": 132}
+  ],
+  "stage_split": {
+    "_comment": "From progress bars in run logs: the dataloader stage reports inference time separately from total wall time.",
+    "inference_s_single_sequence": 27,
+    "inference_s_with_msa": 32,
+    "fixed_overhead_s": 32,
+    "overhead_note": "process start, checkpoint load (~2.3 GB) and output writing. This is per-invocation and is what batching amortises."
+  },
+  "screening_stage": {
+    "_comment": "MHCflurry 2.2.1, CPU only. Measured on an Apple M-series host; the Nano has 20 ARM cores and should be comparable or better.",
+    "peptides_per_second": 430,
+    "variants": 50,
+    "candidate_peptides": 1890,
+    "wall_s": 8.8,
+    "note": "scores mutant AND wild-type peptides, so 3780 predictions total"
+  },
+  "projections": {
+    "_comment": "NOT MEASURED. Derived from the measured single-node numbers above. Label as projections wherever shown.",
+    "basis": "mean wall time 64.3 s/candidate with cached MSA (n=7 full-setting runs)",
+    "one_nano_candidates_per_hour": 56,
+    "assumptions": [
+      "candidates are independent jobs, so throughput scales with workers",
+      "the HLA and B2M MSAs are cached once per patient and reused, so MSA cost is amortised to ~0",
+      "no measurement of a second node was possible: only one Nano was available"
+    ],
+    "erosion_factors": [
+      "per-invocation model load (32 s) unless jobs are batched in one process",
+      "queue and scheduling overhead",
+      "storage I/O when writing many structures",
+      "sustained thermal/power behaviour over long runs"
+    ]
+  }
+}
