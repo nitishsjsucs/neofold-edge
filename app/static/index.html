@@ -77,6 +77,16 @@
   .metric .v{font-family:var(--mono);font-size:16px;font-weight:600}
   .metric .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
   .hint{font-size:11.5px;color:var(--muted);padding:0 14px 12px;line-height:1.5}
+  .contact{margin:0 14px 12px;padding:11px 13px;background:#0f2a1c;
+           border:1px solid #1d4430;border-radius:8px}
+  .ctitle{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--good);
+          font-weight:600;margin-bottom:7px}
+  .crow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-bottom:7px}
+  .cval{font-family:var(--mono);font-size:15px;font-weight:650}
+  .cval.good{color:var(--good)}
+  .clab{font-size:10.5px;color:var(--muted);margin-right:9px}
+  .cnote{font-size:11.5px;color:var(--muted);line-height:1.55}
+  .cref{display:block;margin-top:4px;font-size:10.5px;opacity:.75}
   .empty{padding:34px 14px;text-align:center;color:var(--muted);font-size:13px}
   .err{color:var(--bad);font-size:12px;padding:8px 14px}
   @media(max-width:980px){main{grid-template-columns:1fr}.disclaimer{margin-left:0;text-align:left}}
@@ -141,11 +151,19 @@
         <span><i style="background:#3d4759"></i>β2-microglobulin</span>
       </div>
       <div class="metrics" id="conf"></div>
+      <div id="contact"></div>
       <div class="hint" id="structHint">
         <b>Predicted structure</b>, not an experimental observation. Confidence scores
         describe the model's self-assessment, not biological validity — we measured that
-        a deliberately mismatched peptide/allele pair still scores ipTM 0.988.
-        Ranking comes from the binding screen, not from these numbers.
+        a deliberately mismatched peptide/allele pair still scores ipTM 0.988, and
+        structure predictors are known to dock non-binding peptides into the groove
+        (Motmaen <i>et al.</i>, PNAS 2023). Ranking comes from the binding screen.
+        <br><br>
+        <b>Do not read binding strength off the picture.</b> For a published
+        wild-type/mutant pair (PDB 7L1B / 7L1C), a <b>70× difference in complex
+        half-life</b> corresponds to just <b>0.73 Å</b> of peptide backbone RMSD.
+        Binding lives in anchor chemistry and kinetics, which a static image cannot show —
+        which is why this panel measures one named, pre-specified contact instead.
       </div>
     </div>
   </section>
@@ -257,6 +275,26 @@ function renderConf(s){
     `<div class="metric"><div class="v">${v==null?'—':(+v).toFixed(3)}</div><div class="k">${k}</div></div>`).join('');
 }
 
+function renderContact(c){
+  const el = $('#contact');
+  if(!c || !c.available){ el.innerHTML=''; return; }
+  const agree = (c.crystal_distance_a!=null && c.min_distance_a!=null)
+    ? Math.abs(c.crystal_distance_a - c.min_distance_a).toFixed(2) : null;
+  el.innerHTML = `
+    <div class="contact">
+      <div class="ctitle">Pre-registered contact · ${c.peptide_residue} ↔ ${c.mhc_residue}</div>
+      <div class="crow">
+        <span class="cval">${c.min_distance_a ?? '—'} Å</span><span class="clab">predicted</span>
+        ${c.crystal_distance_a!=null
+          ? `<span class="cval">${c.crystal_distance_a} Å</span><span class="clab">crystal 6ULN</span>` : ''}
+        ${agree!=null ? `<span class="cval good">±${agree} Å</span><span class="clab">agreement</span>` : ''}
+      </div>
+      <div class="cnote">${c.rationale}
+        <b>The normal protein has glycine at this position — no side chain, so this
+        contact cannot form at all.</b> <span class="cref">${c.reference}</span></div>
+    </div>`;
+}
+
 async function refreshNet(){
   try{
     const n = await jget('/api/network');
@@ -313,6 +351,7 @@ async function run(){
   if(st.structures.length){
     await loadStructure(st.structures[0].id);
     renderConf(st.structures[0]);
+    renderContact(await jget(`/api/contact/${st.structures[0].id}`));
   }
 
   refreshNet(); refreshGpu();

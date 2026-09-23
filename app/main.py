@@ -130,6 +130,53 @@ def structure(name: str):
     return FileResponse(path, media_type="chemical/x-mmcif")
 
 
+# Contacts worth measuring, specified in advance from experimental structures.
+# Fishing a predicted model for "whatever looks different" would not be evidence;
+# checking a named contact that a crystal structure already established is.
+PREREGISTERED_CONTACTS = {
+    "HLA-C*08:02": {
+        "peptide_position": 3,
+        "mhc_residue": 156,
+        "rationale": ("HLA-C*08:02 prefers aspartate at peptide position 3, and "
+                      "crystal structure 6ULN shows that residue salt-bridging "
+                      "Arg156 in the D pocket. The G12D substitution is what "
+                      "places an aspartate there."),
+        "reference": "PDB 6ULN; Rasmussen et al., J Immunol 2014",
+    },
+}
+
+
+@app.get("/api/contact/{name}")
+def contact(name: str, allele: str = "HLA-C*08:02") -> dict:
+    """Measure the pre-registered contact for this allele in a predicted model."""
+    spec = PREREGISTERED_CONTACTS.get(allele)
+    if spec is None:
+        return {"available": False,
+                "reason": f"no pre-registered contact defined for {allele}"}
+
+    path = (RESULTS / f"{name}.cif").resolve()
+    if not str(path).startswith(str(RESULTS)) or not path.exists():
+        raise HTTPException(status_code=404, detail="no such structure")
+
+    from neofold.contacts import measure_salt_bridge, peptide_sequence
+    measured = measure_salt_bridge(
+        path, peptide_position=spec["peptide_position"],
+        mhc_residue_number=spec["mhc_residue"])
+
+    out = {"available": True, "peptide": peptide_sequence(path),
+           "rationale": spec["rationale"], "reference": spec["reference"],
+           **measured.as_dict()}
+
+    # Compare against the experimental structure when we have it on disk.
+    crystal = RESULTS / "reference" / "6ULN.cif"
+    if crystal.exists() and allele == "HLA-C*08:02":
+        ref = measure_salt_bridge(
+            crystal, peptide_position=spec["peptide_position"],
+            mhc_residue_number=spec["mhc_residue"])
+        out["crystal_distance_a"] = ref.as_dict()["min_distance_a"]
+    return out
+
+
 @app.get("/api/gpu")
 def gpu() -> dict:
     """GPU telemetry, GB10-aware.

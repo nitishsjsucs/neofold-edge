@@ -265,7 +265,13 @@ The naive version is false: Boltz will produce a confident, plausible pose for t
 
 Two things make this honest rather than fishing: the contact was **specified in advance from an experimental structure**, and the wild-type failure is **chemical, not predictive** — glycine has no side chain, so the interaction cannot exist at any confidence level.
 
+This is not our inference. Sim *et al.* (*PNAS* 2020) report that "only mutant G12D but not the wild-type peptides stabilized HLA-C\*08:02", with the most peptide side-chain contacts at p3 where the Asp salt-bridges Arg156; Mariuzza *et al.* (*Front Immunol* 2023) state plainly that "this salt bridge cannot form with P3 Gly, which probably explains the instability of wild-type KRAS–HLA-C complexes."
+
 **Caption to use:** *"The G12D substitution places an aspartate at peptide position 3, where HLA-C\*08:02 has a charged pocket. In the crystal structure that aspartate forms a 2.7 Å salt bridge to Arg156; our local prediction reproduces it at 2.5 Å. The normal protein has glycine here — no side chain, no contact possible."*
+
+> ⚠️ **The caveat that must accompany the panel.** Do not let anyone read binding strength off the picture. For a published wild-type/mutant pair on HLA-A\*03:01 (PDB **7L1B** / **7L1C**, Chandran *et al.*, *Nat Med* 2022), a **70× difference in complex half-life** (0.078 h vs 5.497 h) corresponds to just **0.73 Å** of peptide backbone RMSD. Almost none of the binding signal is visible as geometry. Say so — it is why the panel measures one named contact and takes its ranking from the sequence-based screen.
+>
+> Two further honest limits: modelling protocols such as PANDORA and APE-Gen place anchors in pockets **by construction**, so burial depth in a model is an artifact, not evidence. And non-binders do not crystallise, so the PDB contains **no control group** for any "non-binder geometry" claim.
 
 ### ⚠️ OpenMM stability test — feasible, but frame it as a negative filter only
 
