@@ -129,6 +129,14 @@ PAIRS = {
         "label": "KRAS wild-type — normal tissue", "peptide": "GAGGVGKSA",
         "role": "wild_type", "partner": "kras_g12d_9mer_mut_model_0",
     },
+    "kit_d816v_mut_model_0": {
+        "label": "KIT D816V — tumour", "peptide": "ICDFGLARV", "role": "mutant",
+        "partner": "kit_d816v_wt_model_0",
+    },
+    "kit_d816v_wt_model_0": {
+        "label": "KIT wild-type", "peptide": "ICDFGLARD", "role": "wild_type",
+        "partner": "kit_d816v_mut_model_0",
+    },
 }
 
 
@@ -213,26 +221,60 @@ def structure(name: str):
 # Contacts worth measuring, specified in advance from experimental structures.
 # Fishing a predicted model for "whatever looks different" would not be evidence;
 # checking a named contact that a crystal structure already established is.
+#
+# IMPORTANT: a pre-registered contact is only informative when the MUTATION is
+# what creates it. Measured here: KIT D816V places its substitution at peptide
+# position 9, and both the mutant and the wild-type peptide happen to carry Asp
+# at position 3 -- so both form the p3-Arg156 salt bridge (2.54 A vs 2.49 A) and
+# the measurement says nothing about that variant. Keying this per CASE rather
+# than per allele is what stops the panel from implying otherwise.
 PREREGISTERED_CONTACTS = {
-    "HLA-C*08:02": {
+    "kras_g12d": {
+        "alleles": ["HLA-C*08:02"],
         "peptide_position": 3,
         "mhc_residue": 156,
+        "mutation_position": 3,
         "rationale": ("HLA-C*08:02 prefers aspartate at peptide position 3, and "
                       "crystal structure 6ULN shows that residue salt-bridging "
                       "Arg156 in the D pocket. The G12D substitution is what "
                       "places an aspartate there."),
-        "reference": "PDB 6ULN; Rasmussen et al., J Immunol 2014",
+        "reference": "PDB 6ULN; Sim et al., PNAS 2020; Rasmussen et al., J Immunol 2014",
     },
 }
+
+# Cases we have structures for but NO pre-registered contact that the mutation
+# creates. Saying so is the honest option; measuring something anyway is not.
+NO_CONTACT_REASON = {
+    "kit_d816v": (
+        "KIT D816V substitutes the peptide's C-terminal residue (position 9), "
+        "not position 3. Both the mutant and wild-type peptides carry aspartate "
+        "at position 3, so the p3-Arg156 salt bridge forms in both (2.54 A and "
+        "2.49 A measured) and cannot distinguish them. The C-terminal anchor is "
+        "where this mutation acts; we have not pre-registered a measurement for "
+        "it, so none is shown."
+    ),
+}
+
+
+def _case_for(name: str) -> str | None:
+    for case in list(PREREGISTERED_CONTACTS) + list(NO_CONTACT_REASON):
+        if name.startswith(case):
+            return case
+    return None
 
 
 @app.get("/api/contact/{name}")
 def contact(name: str, allele: str = "HLA-C*08:02") -> dict:
-    """Measure the pre-registered contact for this allele in a predicted model."""
-    spec = PREREGISTERED_CONTACTS.get(allele)
-    if spec is None:
+    """Measure the pre-registered contact for this case, if one applies."""
+    case = _case_for(name)
+    if case in NO_CONTACT_REASON:
+        return {"available": False, "not_applicable": True,
+                "reason": NO_CONTACT_REASON[case]}
+
+    spec = PREREGISTERED_CONTACTS.get(case)
+    if spec is None or allele not in spec["alleles"]:
         return {"available": False,
-                "reason": f"no pre-registered contact defined for {allele}"}
+                "reason": f"no pre-registered contact defined for this case on {allele}"}
 
     path = _find_cif(name)
     if path is None:
@@ -247,12 +289,10 @@ def contact(name: str, allele: str = "HLA-C*08:02") -> dict:
            "rationale": spec["rationale"], "reference": spec["reference"],
            **measured.as_dict()}
 
-    # Compare against the experimental structure when we have it on disk.
     crystal = RESULTS / "reference" / "6ULN.cif"
-    if crystal.exists() and allele == "HLA-C*08:02":
-        ref = measure_salt_bridge(
-            crystal, peptide_position=spec["peptide_position"],
-            mhc_residue_number=spec["mhc_residue"])
+    if crystal.exists() and case == "kras_g12d":
+        ref = measure_salt_bridge(crystal, peptide_position=spec["peptide_position"],
+                                  mhc_residue_number=spec["mhc_residue"])
         out["crystal_distance_a"] = ref.as_dict()["min_distance_a"]
     return out
 

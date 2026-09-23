@@ -90,6 +90,8 @@
   .contact.absent{background:#2b1d10;border-color:#5a3a18}
   .ctitle.absent{color:var(--warn)}
   .cval.no{color:var(--bad)}
+  .contact.na{background:#1c2128;border-color:var(--line)}
+  .ctitle.na{color:var(--muted)}
   .subh{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
         font-weight:600;margin:2px 0 7px}
   .viewtabs{display:flex;gap:6px;padding:10px 14px 0}
@@ -356,7 +358,18 @@ function renderConf(s){
 
 function renderContact(c){
   const el = $('#contact');
-  if(!c || !c.available){ el.innerHTML=''; return; }
+  if(!c){ el.innerHTML=''; return; }
+
+  // Declining to measure is itself information, and worth showing.
+  if(!c.available && c.not_applicable){
+    el.innerHTML = `
+      <div class="contact na">
+        <div class="ctitle na">Pre-registered contact · not applicable to this variant</div>
+        <div class="cnote">${c.reason}</div>
+      </div>`;
+    return;
+  }
+  if(!c.available){ el.innerHTML=''; return; }
 
   // An absent contact is a finding, not a failure -- but it must not be dressed
   // in the same success styling as a formed one.
@@ -528,6 +541,12 @@ async function run(){
 
   if(tabs.length) await show(tabs[0].id);
   try{ renderCompare(await jget('/api/compare')); }catch(e){}
+  // The comparison table is specific to the KRAS pair; hide it on other tabs.
+  document.querySelectorAll('.viewtabs button').forEach(b => {
+    const prev = b.onclick;
+    b.onclick = async () => { await prev();
+      $('#compare').style.display = b.dataset.id.startsWith('kras_g12d_9mer') ? '' : 'none'; };
+  });
 
   refreshNet(); refreshGpu();
   setInterval(refreshGpu, 2000);
