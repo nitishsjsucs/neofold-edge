@@ -177,6 +177,56 @@ def contact(name: str, allele: str = "HLA-C*08:02") -> dict:
     return out
 
 
+@app.get("/api/confidence/{name}")
+def confidence(name: str) -> dict:
+    """Per-residue and pairwise confidence arrays for the confidence plots.
+
+    pLDDT is per-atom confidence collapsed to residues; PAE is the predicted
+    error in the relative position of every residue pair. The PAE block
+    structure is the interesting part: low off-diagonal error between the
+    peptide chain and the groove means the model is confident about how they
+    sit RELATIVE to each other, which is a different claim from being
+    confident about each chain on its own.
+    """
+    import numpy as np
+
+    def load(prefix):
+        path = RESULTS / f"{prefix}_{name}.npz"
+        if not path.exists():
+            return None
+        with np.load(path) as d:
+            return d[d.files[0]]
+
+    plddt, pae = load("plddt"), load("pae")
+    if plddt is None and pae is None:
+        raise HTTPException(status_code=404, detail="no confidence arrays on disk")
+
+    # Chain boundaries, read from the structure so the plots can band them.
+    chains = []
+    cif = RESULTS / f"{name}.cif"
+    if cif.exists():
+        import gemmi
+        st = gemmi.read_structure(str(cif))
+        st.setup_entities()
+        offset = 0
+        labels = {"A": "HLA heavy chain", "B": "β2-microglobulin", "C": "Peptide"}
+        for ch in st[0]:
+            n = len(list(ch))
+            chains.append({"id": ch.name, "label": labels.get(ch.name, ch.name),
+                           "start": offset, "end": offset + n - 1, "length": n})
+            offset += n
+
+    out = {"name": name, "chains": chains}
+    if plddt is not None:
+        # Boltz reports pLDDT on 0-1 here; the conventional scale is 0-100.
+        scale = 100.0 if float(plddt.max()) <= 1.0 else 1.0
+        out["plddt"] = [round(float(v) * scale, 1) for v in plddt]
+    if pae is not None:
+        out["pae"] = [[round(float(v), 1) for v in row] for row in pae]
+        out["pae_max"] = round(float(pae.max()), 1)
+    return out
+
+
 @app.get("/api/gpu")
 def gpu() -> dict:
     """GPU telemetry, GB10-aware.
