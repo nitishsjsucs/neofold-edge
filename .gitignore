@@ -5,3 +5,4 @@ models/
 *.npz
 msa_cache/
 out/
+.pytest_cache/
