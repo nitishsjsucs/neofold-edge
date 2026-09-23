@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>NeoFold Edge</title>
+<link rel="stylesheet" href="/static/vendor/molstar.css">
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --panel-2:#1c2128; --line:#30363d;
+    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
+    --good:#3fb950; --warn:#d29922; --bad:#f85149; --chip:#21262d;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;
+         border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+  .brand{font-weight:650;font-size:16px;letter-spacing:-.01em}
+  .brand span{color:var(--accent)}
+  .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+         background:var(--chip);border:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .badge.ok{color:var(--good);border-color:#23482f}
+  .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
+  .disclaimer{margin-left:auto;font-size:12px;color:var(--warn);max-width:520px;text-align:right}
+
+  main{display:grid;grid-template-columns:minmax(420px,1.1fr) minmax(420px,1fr);
+       gap:14px;padding:14px;align-items:start}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .card h2{margin:0;padding:11px 14px;font-size:13px;font-weight:600;color:var(--muted);
+           border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.06em}
+  .body{padding:14px}
+
+  .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;
+        text-transform:uppercase;letter-spacing:.05em}
+  select,button{font:inherit;background:var(--panel-2);color:var(--text);
+                border:1px solid var(--line);border-radius:7px;padding:8px 11px}
+  button{background:var(--accent);color:#04121f;font-weight:600;cursor:pointer;border-color:transparent}
+  button:hover:not(:disabled){filter:brightness(1.1)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+
+  .funnel{display:flex;gap:8px;margin:16px 0 4px;flex-wrap:wrap}
+  .step{flex:1;min-width:88px;background:var(--panel-2);border:1px solid var(--line);
+        border-radius:8px;padding:10px 12px}
+  .step .n{font-size:21px;font-weight:650;font-family:var(--mono);letter-spacing:-.02em}
+  .step .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
+  .step.final .n{color:var(--good)}
+
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{text-align:left;padding:7px 9px;color:var(--muted);font-weight:600;font-size:10.5px;
+     text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);
+     position:sticky;top:0;background:var(--panel)}
+  td{padding:7px 9px;border-bottom:1px solid #21262d;vertical-align:top}
+  tr.row{cursor:pointer}
+  tr.row:hover{background:var(--panel-2)}
+  tr.row.sel{background:#132b47}
+  .mono{font-family:var(--mono)}
+  .num{text-align:right;font-family:var(--mono)}
+  .tier{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:600;white-space:nowrap}
+  .t-investigate{background:#0f3d23;color:var(--good)}
+  .t-not{background:#4a2c12;color:var(--warn)}
+  .t-weak{background:#2d2a15;color:#c9b458}
+  .t-dep{background:#22262c;color:var(--muted)}
+  .reason{color:var(--muted);font-size:11.5px;max-width:340px}
+  .scroll{max-height:380px;overflow:auto}
+
+  #viewer{position:relative;width:100%;height:430px;background:var(--bg)}
+  /* MolViewSpec creates a snapshot timeline we never use; it just adds clutter. */
+  #viewer .msp-viewport-top-left-controls{display:none!important}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px 0;font-size:11.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:baseline}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;padding:12px 14px;
+           border-top:1px solid var(--line)}
+  .metric{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+  .metric .v{font-family:var(--mono);font-size:16px;font-weight:600}
+  .metric .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
+  .hint{font-size:11.5px;color:var(--muted);padding:0 14px 12px;line-height:1.5}
+  .empty{padding:34px 14px;text-align:center;color:var(--muted);font-size:13px}
+  .err{color:var(--bad);font-size:12px;padding:8px 14px}
+  @media(max-width:980px){main{grid-template-columns:1fr}.disclaimer{margin-left:0;text-align:left}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">NeoFold <span>Edge</span></div>
+  <div class="badge" id="net"><i class="dot"></i><span>checking…</span></div>
+  <div class="badge" id="gpu"><i class="dot"></i><span>GPU —</span></div>
+  <div class="disclaimer">Research prioritisation only. Predicted values are hypotheses,
+    not measurements. Expert review and laboratory validation required.</div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>Tumour variant triage</h2>
+      <div class="body">
+        <div class="controls">
+          <div>
+            <label for="ds">Variant file</label>
+            <select id="ds"></select>
+          </div>
+          <div>
+            <label for="al">Patient HLA allele</label>
+            <select id="al"></select>
+          </div>
+          <button id="run">Run triage</button>
+        </div>
+        <div class="funnel" id="funnel"></div>
+        <div class="hint" style="padding:6px 0 0" id="timing"></div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:14px">
+      <h2>Candidates</h2>
+      <div class="scroll">
+        <table>
+          <thead><tr>
+            <th>Peptide</th><th>Variant</th><th class="num">nM</th>
+            <th class="num">WT nM</th><th class="num">Fold</th><th>Assessment</th>
+          </tr></thead>
+          <tbody id="rows"><tr><td colspan="6" class="empty">Run triage to see candidates.</td></tr></tbody>
+        </table>
+      </div>
+      <div class="hint">
+        <b>Fold</b> is the mutant peptide's predicted binding relative to its wild-type
+        counterpart at the same register. A candidate that binds well but whose wild-type
+        binds equally well is not tumour-specific — healthy cells present it too.
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>Predicted peptide–HLA complex</h2>
+      <div id="viewer"></div>
+      <div class="legend">
+        <span><i style="background:#ffa657"></i>Tumour peptide</span>
+        <span><i style="background:#6b7d96"></i>HLA heavy chain</span>
+        <span><i style="background:#3d4759"></i>β2-microglobulin</span>
+      </div>
+      <div class="metrics" id="conf"></div>
+      <div class="hint" id="structHint">
+        <b>Predicted structure</b>, not an experimental observation. Confidence scores
+        describe the model's self-assessment, not biological validity — we measured that
+        a deliberately mismatched peptide/allele pair still scores ipTM 0.988.
+        Ranking comes from the binding screen, not from these numbers.
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/vendor/molstar.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+let viewer = null, current = null;
+
+async function jget(u, o){ const r = await fetch(u, o); if(!r.ok) throw new Error(await r.text()); return r.json(); }
+
+async function initViewer(){
+  viewer = await molstar.Viewer.create('viewer', {
+    layoutIsExpanded:false, layoutShowControls:false, layoutShowSequence:false,
+    layoutShowLog:false, layoutShowLeftPanel:false,
+    viewportShowExpand:true, viewportShowSelectionMode:false
+  });
+}
+
+// Chain roles in a Boltz pMHC prediction: A = HLA heavy chain, B = beta-2-
+// microglobulin, C = the peptide. Styling them separately is the whole point
+// of the panel -- an undifferentiated blob does not show a peptide in a groove.
+const CHAIN_STYLE = [
+  ['A', 'cartoon',        '#6b7d96', 0.90],
+  ['B', 'cartoon',        '#3d4759', 0.45],
+  ['C', 'ball_and_stick', '#ffa657', null],
+];
+
+function mvsScene(url){
+  const component = (chain, type, color, opacity) => ({
+    kind:'component', params:{selector:{label_asym_id:chain}}, children:[
+      {kind:'representation', params:{type}, children:[
+        {kind:'color', params:{color}},
+        ...(opacity!=null ? [{kind:'opacity', params:{opacity}}] : [])
+      ]}
+    ]});
+  return {
+    kind:'single',
+    root:{kind:'root', children:[
+      {kind:'download', params:{url}, children:[
+        {kind:'parse', params:{format:'mmcif'}, children:[
+          {kind:'structure', params:{type:'model'}, children:[
+            ...CHAIN_STYLE.map(a => component(...a)),
+            // Frame the groove, not just the peptide: enough context to read
+            // the fold, close enough that the peptide is unmistakable.
+            {kind:'component', params:{selector:{label_asym_id:'C'}},
+             children:[{kind:'focus', params:{radius_extent:16}}]}
+          ]}
+        ]}
+      ]}
+    ]},
+    metadata:{version:'1', timestamp:new Date().toISOString()}
+  };
+}
+
+async function loadStructure(id){
+  if(!viewer) return;
+  try{
+    await viewer.loadMvsData(JSON.stringify(mvsScene(`/api/structure/${id}`)),
+                             'mvsj', {replaceExisting:true});
+    viewer.plugin.canvas3d?.setProps({renderer:{backgroundColor:0x0d1117}});
+    current = id;
+  }catch(e){ console.error('structure load failed', e); }
+}
+
+function tierClass(t){
+  return t==='investigate' ? 't-investigate'
+       : t==='not tumour-specific' ? 't-not'
+       : t==='weak presentation' ? 't-weak' : 't-dep';
+}
+
+function renderFunnel(f){
+  const steps = [
+    ['variants','Variants'], ['candidate_peptides','Peptides'],
+    ['investigate','Qualified'], ['shortlist','Shortlist']
+  ];
+  $('#funnel').innerHTML = steps.map(([k,l],i)=>
+    `<div class="step ${i===steps.length-1?'final':''}">
+       <div class="n">${f[k].toLocaleString()}</div><div class="l">${l}</div></div>`).join('');
+}
+
+function renderRows(rows){
+  if(!rows.length){ $('#rows').innerHTML='<tr><td colspan="6" class="empty">No candidates.</td></tr>'; return; }
+  $('#rows').innerHTML = rows.slice(0,60).map((r,i)=>`
+    <tr class="row" data-i="${i}">
+      <td class="mono">${r.peptide}</td>
+      <td>${r.candidate_id.split('-').slice(0,2).join(' ')}</td>
+      <td class="num">${r.affinity_nm.toFixed(0)}</td>
+      <td class="num">${isFinite(r.wt_affinity_nm)?r.wt_affinity_nm.toFixed(0):'—'}</td>
+      <td class="num">${isFinite(r.fold_change)?r.fold_change.toFixed(1)+'×':'—'}</td>
+      <td><span class="tier ${tierClass(r.tier)}">${r.tier}</span>
+          <div class="reason">${r.reason}</div></td>
+    </tr>`).join('');
+  document.querySelectorAll('tr.row').forEach(tr=>tr.onclick=()=>{
+    document.querySelectorAll('tr.row').forEach(x=>x.classList.remove('sel'));
+    tr.classList.add('sel');
+  });
+}
+
+function renderConf(s){
+  if(!s){ $('#conf').innerHTML=''; return; }
+  const m = [
+    ['ipTM', s.iptm, 'interface confidence'],
+    ['pLDDT', s.plddt, 'per-atom confidence'],
+    ['pTM', s.ptm, 'global fold confidence'],
+  ];
+  $('#conf').innerHTML = m.map(([k,v])=>
+    `<div class="metric"><div class="v">${v==null?'—':(+v).toFixed(3)}</div><div class="k">${k}</div></div>`).join('');
+}
+
+async function refreshNet(){
+  try{
+    const n = await jget('/api/network');
+    const el = $('#net');
+    el.className = 'badge ok';
+    el.querySelector('span').textContent =
+      `No external calls (${n.external_calls_made})`;
+  }catch(e){}
+}
+
+async function refreshGpu(){
+  try{
+    const g = await jget('/api/gpu');
+    const el = $('#gpu');
+    if(!g.available){ el.querySelector('span').textContent = 'GPU not present (local dev)'; return; }
+    el.className='badge ok';
+    el.querySelector('span').textContent =
+      `${g.name} · ${g.utilization_pct ?? '—'}% · ${g.power_watts ?? '—'} W`;
+  }catch(e){}
+}
+
+async function run(){
+  const btn = $('#run'); btn.disabled = true; btn.textContent = 'Screening…';
+  try{
+    const data = await jget('/api/triage', {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({vcf:$('#ds').value, allele:$('#al').value, top_n:5})
+    });
+    renderFunnel(data.funnel);
+    renderRows(data.results);
+    $('#timing').textContent =
+      `Screened ${data.funnel.candidate_peptides.toLocaleString()} peptides ` +
+      `(mutant + wild-type) in ${data.timings.screen}s` + (data.cached?' · cached':'');
+  }catch(e){
+    $('#rows').innerHTML = `<tr><td colspan="6" class="err">${e.message}</td></tr>`;
+  }finally{ btn.disabled=false; btn.textContent='Run triage'; }
+}
+
+(async function(){
+  await initViewer();
+
+  const ds = await jget('/api/datasets');
+  $('#ds').innerHTML = ds.datasets.map(d=>`<option value="${d.path}">${d.name}</option>`).join('');
+  const prefer = ds.datasets.find(d=>d.name.includes('large'));
+  if(prefer) $('#ds').value = prefer.path;
+
+  const al = await jget('/api/alleles?q=HLA-C*08');
+  const common = ['HLA-C*08:02','HLA-A*02:01','HLA-A*11:01','HLA-A*03:01','HLA-B*07:02'];
+  const more = (await jget('/api/alleles')).alleles;
+  const list = [...new Set([...common, ...more])];
+  $('#al').innerHTML = list.map(a=>`<option>${a}</option>`).join('');
+
+  const st = await jget('/api/structures');
+  if(st.structures.length){
+    await loadStructure(st.structures[0].id);
+    renderConf(st.structures[0]);
+  }
+
+  refreshNet(); refreshGpu();
+  setInterval(refreshGpu, 2000);
+  $('#run').onclick = run;
+})();
+</script>
+</body>
+</html>

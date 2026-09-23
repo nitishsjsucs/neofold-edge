@@ -1,0 +1,17 @@
+##fileformat=VCFv4.2
+##reference=GRCh38
+##source=NeoFoldEdge-synthetic
+##NOTE=Synthetic demo file. Recurrent somatic hotspots from public literature.
+##NOTE=No patient data. Research prioritization only.
+##INFO=<ID=GENE,Number=1,Type=String,Description="Gene symbol">
+##INFO=<ID=UNIPROT,Number=1,Type=String,Description="UniProt accession (canonical)">
+##INFO=<ID=HGVSP,Number=1,Type=String,Description="Protein consequence">
+#CHROM	POS	ID	REF	ALT	QUAL	FILTER	INFO
+chr12	25245350	.	C	T	.	PASS	GENE=KRAS;UNIPROT=P01116;HGVSP=p.Gly12Asp
+chr12	25245350	.	C	A	.	PASS	GENE=KRAS;UNIPROT=P01116;HGVSP=p.Gly12Val
+chr17	7675088	.	C	T	.	PASS	GENE=TP53;UNIPROT=P04637;HGVSP=p.Arg175His
+chr17	7673802	.	C	T	.	PASS	GENE=TP53;UNIPROT=P04637;HGVSP=p.Arg248Gln
+chr7	140753336	.	A	T	.	PASS	GENE=BRAF;UNIPROT=P15056;HGVSP=p.Val600Glu
+chr3	179234297	.	A	G	.	PASS	GENE=PIK3CA;UNIPROT=P42336;HGVSP=p.His1047Arg
+chr7	55191822	.	T	G	.	PASS	GENE=EGFR;UNIPROT=P00533;HGVSP=p.Leu858Arg
+chr4	55599321	.	A	T	.	PASS	GENE=KIT;UNIPROT=P10721;HGVSP=p.Asp816Val
