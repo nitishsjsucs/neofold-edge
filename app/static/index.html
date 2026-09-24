@@ -160,7 +160,7 @@
         </div>
         <div class="hint" style="padding:8px 0 0">
           Every screened peptide. The dashed lines are the triage rule itself: a candidate
-          must sit left of 500 nM (presentable) <i>and</i> above 2× (tumour-enriched).
+          must sit left of 500 nM (presented) <i>and</i> above DAI 10.
           The upper-left quadrant is the shortlist.
         </div>
       </div>
@@ -172,15 +172,21 @@
         <table>
           <thead><tr>
             <th>Peptide</th><th>Variant</th><th class="num">nM</th>
-            <th class="num">WT nM</th><th class="num">Fold</th><th>Assessment</th>
+            <th class="num">WT nM</th><th class="num">DAI</th><th>Assessment</th>
           </tr></thead>
           <tbody id="rows"><tr><td colspan="6" class="empty">Run triage to see candidates.</td></tr></tbody>
         </table>
       </div>
       <div class="hint">
-        <b>Fold</b> is the mutant peptide's predicted binding relative to its wild-type
-        counterpart at the same register. A candidate that binds well but whose wild-type
-        binds equally well is not tumour-specific — healthy cells present it too.
+        <b>DAI</b> (differential agretopicity index) is predicted binding of the wild-type
+        peptide divided by that of the mutant, at the same register — higher means the
+        mutation improved binding. Damped per Łuksza <i>et al.</i> 2017, because the
+        wild-type is usually a weak binder and that is exactly where predictors are least
+        reliable. The bar is <b>DAI ≥ 10</b>, the first percentile in Rech <i>et al.</i>
+        2018 — equivalently TESLA's <i>agretopicity &lt; 0.1</i>. It is applied only to
+        peptides that already clear the presentation gate, because TESLA found that
+        prioritising agretopicity <i>without</i> accounting for presentation performed
+        no better or worse.
       </div>
     </div>
   </section>
@@ -266,7 +272,7 @@
 <div id="tip"></div>
 <script src="/static/vendor/molstar.js"></script>
 <script type="module">
-import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces } from '/static/charts.js?v=6';
+import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces } from '/static/charts.js?v=7';
 
 const $ = s => document.querySelector(s);
 
@@ -343,14 +349,16 @@ async function loadStructure(id){
 function tierClass(t){
   return t==='investigate' ? 't-investigate'
        : t==='not tumour-specific' ? 't-not'
-       : t==='weak presentation' ? 't-weak'
+       : t==='presented, not distinguished' ? 't-weak'
+       : t==='not presented' ? 't-dep'
        : t==='self peptide' ? 't-self' : 't-dep';
 }
 
 function renderFunnel(f){
   const steps = [
     ['variants','Variants'], ['candidate_peptides','Peptides'],
-    ['self_peptides','Self — cut'], ['investigate','Qualified'], ['shortlist','Shortlist']
+    ['self_peptides','Self — cut'], ['presented','Presented'],
+    ['investigate','Qualified'], ['shortlist','Shortlist']
   ];
   $('#funnel').innerHTML = steps.filter(([k])=>f[k]!=null).map(([k,l],i,arr)=>
     `<div class="step ${i===arr.length-1?'final':''} ${k==='self_peptides'?'cut':''}">
@@ -365,7 +373,7 @@ function renderRows(rows){
       <td>${r.candidate_id.split('-').slice(0,2).join(' ')}</td>
       <td class="num">${r.affinity_nm.toFixed(0)}</td>
       <td class="num">${isFinite(r.wt_affinity_nm)?r.wt_affinity_nm.toFixed(0):'—'}</td>
-      <td class="num">${isFinite(r.fold_change)?r.fold_change.toFixed(1)+'×':'—'}</td>
+      <td class="num">${isFinite(r.dai)?r.dai.toFixed(1):'—'}</td>
       <td><span class="tier ${tierClass(r.tier)}">${r.tier}</span>
           <div class="reason">${r.reason}</div></td>
     </tr>`).join('');

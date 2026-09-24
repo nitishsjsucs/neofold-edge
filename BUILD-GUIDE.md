@@ -240,6 +240,66 @@ Always show the wild-type control. It is the difference between "the model gave 
 
 ---
 
+## 6B-2. ⚠️ Literature audit: what we had wrong
+
+We audited the pipeline against the primary experimental literature. Three things were wrong and are now fixed.
+
+### 1. The 2× mutant-vs-wildtype threshold was invented
+
+**No published source supports a 2× cutoff.** The field is bimodal — either no threshold at all (Łuksza 2017/2022, MuPeXI, Neopepsee, antigen.garnish all use it as a *continuous* feature), or **~10×**. Rech *et al.* (*Cancer Immunol Res* 2018) derived **DAI > 10** as the first percentile of the empirical distribution, and measured the **median DAI of ordinary neoantigens as 1.183** — so our 2× cut sat near the middle of the null distribution and enriched for almost nothing.
+
+**Fixed:** threshold is now **DAI ≥ 10**, cited to Rech 2018.
+
+### 2. We applied the differential as a standalone gate
+
+TESLA (Wells *et al.*, *Cell* 2020; 608 peptides, 25 pipelines, **37 immunogenic = 6%**) is explicit: *"submissions that explicitly prioritized peptide foreignness, agretopicity, or both, **without accounting for presentation**, either had no difference in performance or performed worse."*
+
+**Fixed:** presentation is now a hard gate applied *first*; the differential only ranks peptides that already clear it.
+
+### 3. The denominator was undamped
+
+The wild-type peptide is by construction usually a weak binder — exactly the regime where predictors are least reliable and a small denominator inflates the ratio arbitrarily. Łuksza *et al.* (*Nature* 2017) damp it with ε = 0.0003 (1/3687 nM, "the outer range of predictability for the assays upon which NetMHC is trained"); antigen.garnish adopts this verbatim.
+
+**Fixed:** `damped_dai()` applies the Łuksza correction. Raw and damped values are both reported.
+
+### A trap we avoided by testing
+
+**TESLA's "agretopicity" is the reciprocal of everyone else's DAI.** `agretopicity < 0.1` and `DAI > 10` are the same filter. Worse, the **pVACtools documentation states the direction backwards** relative to its own source code. A sign error here silently inverts the filter, so `tests/test_dai.py` asserts the convention rather than assuming it.
+
+### One overreach we caught in ourselves
+
+We briefly implemented TESLA's recognition rule as a disjunction — *low agretopicity OR high foreignness* — using our self-similarity search as the foreignness term. **That was wrong.** TESLA's foreignness is similarity to *known pathogen epitopes* (the Łuksza IEDB term); our search measures *distance from the human proteome* (closer to Richman *et al.*, *Cell Syst* 2019 "dissimilarity"). They are different quantities. Substituting one for the other admitted candidates at DAI 0.9 that the differential had correctly rejected. Dissimilarity-to-self is now reported as a **flag** and never qualifies a candidate on its own.
+
+### Resulting funnel
+
+| Stage | Count |
+|---|---|
+| Variants | 50 |
+| Candidate peptides | 1,890 |
+| **Self peptides cut** | **13** |
+| **Presented** (≤500 nM, presentation ≥ 0.10) | **22** |
+| **Qualified** (DAI ≥ 10) | **3** |
+
+Both published KRAS G12D epitopes are in the top 3 (DAI 17.9 and 23.5). `ITDFGRAKL` (EGFR L858R) correctly falls out at DAI 0.9.
+
+### Ranked omissions, with measured effect sizes
+
+A reviewer will ask what we are not modelling. In priority order:
+
+| Omission | Measured effect | Source |
+|---|---|---|
+| **RNA expression** | **+11 to +13 PPV points**; orthogonal to affinity; in TESLA, 50% of lost immunogenic peptides were lost to low abundance | Abelin *Immunity* 2017; Sarkizova *Nat Biotechnol* 2020 |
+| Clonality / VAF | 12/13 vs 2/18 benefit on anti-PD-1; **zero** T-cell responses across >250 subclonal peptides | McGranahan *Science* 2016 |
+| pMHC stability | TESLA > 1.4 h; two peptides with *identical* affinity had half-lives of 22.3 h and 1.3 h | Harndahl 2012; Blaha 2019 |
+| TAP transport | AUC 0.919 → 0.932; NetCTL weights it 0.05 | Peters *J Immunol* 2003 |
+| Proteasomal cleavage | Adds ~1.5–3 PPV points; in Peters 2003 combining it actively *hurt* | Peters 2003; Sarkizova 2020 |
+
+**Expression is the most serious.** A gene that is not transcribed cannot produce a presented peptide at any affinity, so an affinity-only pipeline nominates epitopes that are physically impossible, not merely improbable.
+
+**The honest framing of our hit rate:** affinity-based selection is *necessary but wildly under-specific*. Across 1,948 neopeptide-HLA combinations in the literature, **53 (2.7%)** elicited a T-cell response, and 96% of those shared very strong predicted binding — so binding prediction is informative, just nowhere near sufficient (Bjerregaard *Front Immunol* 2017).
+
+---
+
 ## 6C. The proposed additions, assessed
 
 Three additions were proposed on top of the working pipeline. Two are worth building, one is not.

@@ -169,15 +169,15 @@ export function drawPlddt(container, data, tip){
 /* ----------------------------------------------------- screening scatter */
 export function drawLandscape(container, rows, tip, onPick){
   container.innerHTML = '';
-  const pts = rows.filter(r => isFinite(r.affinity_nm) && isFinite(r.fold_change)
-                            && r.fold_change > 0);
+  const pts = rows.filter(r => isFinite(r.affinity_nm) && isFinite(r.dai)
+                            && r.dai > 0);
   if (!pts.length) return;
 
   const w = container.clientWidth || 380, h = 240, padL = 44, padB = 34;
   const pw = w - padL - 14, ph = h - padB - 14;
   const lx = v => Math.log10(Math.max(1, v));
   const ly = v => Math.log10(Math.max(0.05, v));
-  const xs = pts.map(p => lx(p.affinity_nm)), ys = pts.map(p => ly(p.fold_change));
+  const xs = pts.map(p => lx(p.affinity_nm)), ys = pts.map(p => ly(p.dai));
   const x0 = Math.min(...xs), x1 = Math.max(...xs);
   const y0 = Math.min(...ys), y1 = Math.max(...ys);
   const X = v => padL + (lx(v) - x0) / (x1 - x0 || 1) * pw;
@@ -189,9 +189,9 @@ export function drawLandscape(container, rows, tip, onPick){
   svg.appendChild(el('line', {x1:X(500), x2:X(500), y1:14, y2:14 + ph,
                               stroke:INK.grid, 'stroke-width':1, 'stroke-dasharray':'3 3'}));
   svg.appendChild(text(X(500) - 4, 12, '500 nM', {anchor:'end', size:9}));
-  svg.appendChild(el('line', {x1:padL, x2:padL + pw, y1:Y(2), y2:Y(2),
+  svg.appendChild(el('line', {x1:padL, x2:padL + pw, y1:Y(10), y2:Y(10),
                               stroke:INK.grid, 'stroke-width':1, 'stroke-dasharray':'3 3'}));
-  svg.appendChild(text(padL + pw, Y(2) - 4, '2× tumour-enriched', {anchor:'end', size:9}));
+  svg.appendChild(text(padL + pw, Y(10) - 4, 'DAI ≥ 10 (Rech 2018)', {anchor:'end', size:9}));
 
   for (const v of [1, 10, 100, 1000, 10000])
     if (lx(v) >= x0 && lx(v) <= x1)
@@ -210,14 +210,14 @@ export function drawLandscape(container, rows, tip, onPick){
 
   for (const p of pts.slice().reverse()){
     const investigate = p.tier === 'investigate';
-    const c = el('circle', {cx:X(p.affinity_nm), cy:Y(p.fold_change),
+    const c = el('circle', {cx:X(p.affinity_nm), cy:Y(p.dai),
       r: investigate ? 5 : 3, fill:colour(p.tier),
       opacity: investigate ? .95 : .5,
       stroke: investigate ? INK.surface : 'none', 'stroke-width':2,
       style:'cursor:pointer'});
     c.addEventListener('mousemove', ev => tip(ev,
       `<b>${p.peptide}</b>${p.candidate_id.split('-').slice(0,2).join(' ')}`
-      + `${p.affinity_nm.toFixed(0)} nM · ${p.fold_change.toFixed(1)}× vs wild-type`
+      + `${p.affinity_nm.toFixed(0)} nM · DAI ${p.dai.toFixed(1)}`
       + `<i>${p.tier}</i>`));
     c.addEventListener('mouseleave', () => tip(null));
     if (onPick) c.addEventListener('click', () => onPick(p));

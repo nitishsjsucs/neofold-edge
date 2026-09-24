@@ -33,15 +33,27 @@ class ScreenResult:
     processing_score: float
 
     @property
-    def fold_change(self) -> float:
-        """How much stronger the mutant binds than its wild-type counterpart.
+    def dai(self) -> float:
+        """Differential agretopicity index (Łuksza-damped).
 
-        This is the personalization signal: a large value means the mutation
-        created a presentable peptide where the normal protein had none.
+        How much better the mutant binds than its wild-type counterpart at the
+        same register. See `damped_dai` for the direction convention and why
+        the damping matters.
         """
+        return damped_dai(self.wt_affinity_nm, self.affinity_nm)
+
+    @property
+    def raw_fold_change(self) -> float:
+        """Undamped WT/MT ratio. Reported for transparency; ranking uses `dai`."""
         if self.affinity_nm <= 0:
             return float("inf")
         return self.wt_affinity_nm / self.affinity_nm
+
+    @property
+    def agretopicity(self) -> float:
+        """TESLA's convention: MT/WT, so LOWER is better. The reciprocal of DAI."""
+        d = self.dai
+        return float("inf") if d == 0 else 1.0 / d
 
     @property
     def binder_class(self) -> str:
@@ -59,7 +71,9 @@ class ScreenResult:
             "allele": self.allele,
             "affinity_nm": round(self.affinity_nm, 2),
             "wt_affinity_nm": round(self.wt_affinity_nm, 2),
-            "fold_change": round(self.fold_change, 1),
+            "dai": round(self.dai, 1),
+            "raw_fold_change": round(self.raw_fold_change, 1),
+            "agretopicity": round(self.agretopicity, 4),
             "presentation_score": round(self.presentation_score, 4),
             "wt_presentation_score": round(self.wt_presentation_score, 4),
             "processing_score": round(self.processing_score, 4),
@@ -154,55 +168,119 @@ def top_k(results: list[ScreenResult], k: int) -> list[ScreenResult]:
     return results[:k]
 
 
-# A candidate must clear BOTH bars to be worth a researcher's attention:
-# it has to be presentable at all, and it has to be more presentable than the
-# wild-type peptide the same person's healthy cells already display.
+# --------------------------------------------------------------------------
+# Triage rule, structured after Wells et al., Cell 2020 (TESLA).
 #
-# The affinity gate matters independently of presentation score: a peptide can
-# score respectably on presentation while its predicted affinity is in the
-# thousands of nM, which nobody in the field would call a binder.
+# TESLA tested 608 peptides across 25 pipelines and found only 37 (6%)
+# immunogenic. Two findings shape this rule:
+#
+#   1. PRESENTATION FIRST. "Submissions that explicitly prioritized peptide
+#      foreignness, agretopicity, or both, WITHOUT accounting for presentation,
+#      either had no difference in performance or performed worse." So the
+#      mutant-vs-wildtype differential is applied only to peptides that already
+#      look presentable -- never as a standalone gate.
+#   2. RECOGNITION IS A DISJUNCTION. TESLA defines recognition as "the presence
+#      of either low agretopicity OR high foreignness" (OR, not AND). A highly
+#      foreign peptide qualifies even with unremarkable agretopicity.
+#
+# THRESHOLD PROVENANCE, because ours were previously invented:
+#   affinity <= 500 nM   conventional weak-binder band (pVACtools default).
+#                        NOTE: TESLA's 34 nM is on MEASURED affinity from a
+#                        competitive binding assay, not a predicted value, so
+#                        it cannot be transplanted onto MHCflurry output.
+#   DAI >= 10            Rech et al., Cancer Immunol Res 2018 -- the first
+#                        percentile of the empirical DAI distribution. Exactly
+#                        equivalent to TESLA's "agretopicity < 0.1", which is
+#                        the reciprocal convention.
+#
+# We previously used DAI >= 2. That was arbitrary and close to the null: Rech
+# measured the MEDIAN DAI of ordinary neoantigens as 1.183, so a 2x cut sits
+# near the middle of the null distribution and enriches for almost nothing.
 MIN_PRESENTATION = 0.10
-MIN_FOLD_CHANGE = 2.0
+MIN_DAI = 10.0
+
+# Łuksza et al., Nature 2017: the wild-type peptide is usually a weak binder,
+# which is exactly the regime where predictors are least reliable, so a small
+# denominator can inflate the ratio arbitrarily. Damping with this pseudocount
+# (1/3687 nM, "the outer range of predictability for the assays upon which
+# NetMHC is trained") is standard and adopted verbatim by antigen.garnish.
+LUKSZA_EPSILON = 0.0003
+
+
+def damped_dai(wt_affinity_nm: float, mt_affinity_nm: float) -> float:
+    """Differential agretopicity index, Łuksza-damped.
+
+    DIRECTION CONVENTION, asserted in tests because the field is inconsistent
+    and a sign error here silently inverts the filter:
+
+        DAI = affinity_WT / affinity_MT      higher = mutation improved binding
+
+    This matches Rech 2018 and the pVACtools source. Note that TESLA's
+    "agretopicity" is the RECIPROCAL (MT/WT), so TESLA's `agretopicity < 0.1`
+    and `DAI > 10` are the same filter. The pVACtools *documentation* states
+    the direction backwards; its code does not.
+    """
+    if mt_affinity_nm <= 0:
+        return float("inf")
+    raw = wt_affinity_nm / mt_affinity_nm
+    return raw / (1.0 + LUKSZA_EPSILON * wt_affinity_nm)
 
 
 def triage(result: ScreenResult, self_match=None) -> tuple[str, str]:
     """Classify a candidate and say why, in plain language.
 
-    Returns (tier, reason). Kept as explicit rules rather than a blended score
-    so that every row in the UI can explain itself, and so a reviewer can
-    disagree with a specific threshold rather than a black box.
-
-    `self_match` is an optional SelfMatch from neofold.selfsim. A peptide that
-    occurs verbatim in the normal human proteome is disqualified regardless of
-    how well it binds: T-cells against it are subject to central tolerance and
-    would be autoreactive. This check is applied FIRST because binding
-    strength is irrelevant if the peptide is not tumour-specific at all.
+    Explicit rules rather than a blended score, so every row in the UI explains
+    itself and a reviewer can disagree with a named threshold rather than a
+    black box.
     """
+    # Step 0. A peptide that IS a normal human peptide is not a target at all,
+    # however well it binds -- T-cells against it face central tolerance.
     if self_match is not None and self_match.exact_self:
         return ("self peptide", (
             f"disqualified: this exact sequence occurs in the normal human "
             f"proteome ({self_match.nearest_protein}), so it is not a "
             f"tumour-specific target regardless of predicted binding"))
 
+    # Step 1. Presentation gate. Everything downstream is conditional on this,
+    # which is the TESLA finding.
     presentable = (result.presentation_score >= MIN_PRESENTATION
                    and result.affinity_nm <= WEAK_BINDER_NM)
-    specific = result.fold_change >= MIN_FOLD_CHANGE
+    if not presentable:
+        return ("not presented", (
+            f"predicted affinity {result.affinity_nm:.0f} nM and presentation "
+            f"score {result.presentation_score:.2f} — below the bar for being "
+            f"displayed at all, so downstream evidence does not apply"))
 
-    if presentable and specific:
+    # Step 2. Recognition.
+    #
+    # TESLA's recognition rule is a disjunction: "low agretopicity OR high
+    # foreignness". We implement ONLY the agretopicity half, deliberately.
+    #
+    # TESLA's "foreignness" is similarity to known pathogen epitopes -- the
+    # Łuksza R term, a BLOSUM62 alignment score against ~2,500 IEDB epitopes.
+    # Our self-similarity search measures something DIFFERENT: distance from
+    # the human proteome (closer to Richman et al., Cell Syst 2019
+    # "dissimilarity"). Substituting one for the other would be wrong, and
+    # when we tried it the disjunction admitted candidates with DAI ~0.9 that
+    # the differential had correctly rejected. So dissimilarity-to-self is
+    # reported as a FLAG and never qualifies a candidate on its own.
+    dai = result.dai
+    if dai >= MIN_DAI:
+        note = ""
+        if self_match is not None and self_match.min_mismatches is not None:
+            note = (" and has no human peptide within one substitution"
+                    if self_match.min_mismatches > 1
+                    else f" (note: resembles {self_match.nearest_protein}, "
+                         f"one substitution away)")
         return ("investigate", (
-            f"predicted presentable ({result.affinity_nm:.0f} nM) and "
-            f"{result.fold_change:.0f}x stronger than the wild-type peptide"))
-    if presentable and not specific:
-        return ("not tumour-specific", (
-            f"binds well ({result.affinity_nm:.0f} nM) but the wild-type peptide "
-            f"binds comparably ({result.wt_affinity_nm:.0f} nM), so healthy cells "
-            f"are predicted to present it too"))
-    if specific and not presentable:
-        return ("weak presentation", (
-            f"{result.fold_change:.0f}x tumour-enriched but weakly presented "
-            f"({result.affinity_nm:.0f} nM)"))
-    return ("deprioritised",
-            f"neither strongly presented nor tumour-enriched ({result.affinity_nm:.0f} nM)")
+            f"presented ({result.affinity_nm:.0f} nM) and binds {dai:.0f}x better "
+            f"than the wild-type peptide, above the DAI ≥ {MIN_DAI:.0f} bar "
+            f"(Rech 2018){note}"))
+
+    return ("presented, not distinguished", (
+        f"presented ({result.affinity_nm:.0f} nM) but the wild-type peptide binds "
+        f"comparably ({result.wt_affinity_nm:.0f} nM, DAI {dai:.1f}) — below the "
+        f"DAI ≥ {MIN_DAI:.0f} bar, so healthy cells are predicted to present it too"))
 
 
 def rank_for_structure(results: list[ScreenResult], k: int,

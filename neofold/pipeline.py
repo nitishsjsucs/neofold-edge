@@ -9,7 +9,8 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 
-from neofold.screen import PeptideScreen, ScreenResult, rank_for_structure, triage
+from neofold.screen import (MIN_PRESENTATION, WEAK_BINDER_NM, PeptideScreen,
+                            ScreenResult, rank_for_structure, triage)
 from neofold.selfsim import SelfProteome
 from neofold.variants import Candidate, Variant, build_candidates, read_fasta, variants_from_vcf
 
@@ -39,6 +40,9 @@ class TriageReport:
             "scored": len(self.results),
             "self_peptides": sum(1 for r in self.results
                                  if triage(r, self.self_matches.get(r.peptide))[0] == "self peptide"),
+            "presented": sum(1 for r in self.results
+                             if triage(r, self.self_matches.get(r.peptide))[0]
+                             not in ("self peptide", "not presented")),
             "investigate": sum(1 for r in self.results
                                if triage(r, self.self_matches.get(r.peptide))[0] == "investigate"),
             "shortlist": len(self.shortlist),
@@ -103,28 +107,38 @@ def run_triage(
     results = screen.score(candidates, allele)
     timings["screen"] = time.perf_counter() - t0
 
-    # Self-similarity in two passes, because the two checks differ in cost and
-    # in consequence. Exact matches run over everything (cheap) and disqualify.
-    # The 1-mismatch search is ~1.3 s per peptide, so it runs only on the
-    # survivors, and it FLAGS rather than rejects.
+    # Self-similarity runs in two passes, ordered by cost and by consequence.
+    #
+    # Pass 1 (cheap, over everything): exact proteome matches. A peptide that
+    # IS a human peptide is disqualified outright.
+    #
+    # Pass 2 (~1.3 s each, over presented candidates only): the 1-mismatch
+    # search that supplies the FOREIGNNESS term. It has to run before the
+    # recognition rule, because TESLA's rule is "low agretopicity OR high
+    # foreignness" -- so foreignness can qualify a candidate on its own and
+    # cannot be deferred to the shortlist.
     self_matches: dict = {}
     if proteome is not None:
         t0 = time.perf_counter()
         for r in results:
             self_matches[r.peptide] = proteome.check(r.peptide, near=False)
-        timings["self_similarity"] = time.perf_counter() - t0
+        timings["self_exact"] = time.perf_counter() - t0
 
-    shortlist = rank_for_structure(results, top_n, self_matches)
-
-    if proteome is not None and shortlist:
+        presented = [r for r in results
+                     if triage(r, self_matches.get(r.peptide))[0] != "self peptide"
+                     and r.presentation_score >= MIN_PRESENTATION
+                     and r.affinity_nm <= WEAK_BINDER_NM]
         t0 = time.perf_counter()
-        for r in shortlist:
+        for r in presented:
             # Exclude the candidate's own wild-type: every missense neoepitope
             # is trivially one mismatch from it, so counting it would make the
             # flag meaningless.
             self_matches[r.peptide] = proteome.check(
                 r.peptide, near=True, wild_type=r.wt_peptide)
-        timings["near_self_shortlist"] = time.perf_counter() - t0
+        timings["self_near"] = time.perf_counter() - t0
+        timings["_n_presented"] = len(presented)
+
+    shortlist = rank_for_structure(results, top_n, self_matches)
     return TriageReport(
         allele=allele, variants=variants, candidates=candidates,
         results=results, shortlist=shortlist, timings=timings,

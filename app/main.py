@@ -211,7 +211,7 @@ def compare(mutant: str = "kras_g12d_9mer_mut_model_0",
             "structure": ("decisive — the mutation creates an aspartate that "
                           "salt-bridges Arg156; glycine has no side chain, so "
                           "the contact cannot form at all"),
-            "screen": "decisive — 49x stronger predicted binding than wild-type",
+            "screen": "decisive — DAI 23.5, above the Rech 2018 first-percentile bar of 10",
         },
     }
 
