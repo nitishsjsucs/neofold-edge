@@ -55,6 +55,8 @@ class TriageReport:
             if sm is not None:
                 row["self_verdict"] = sm.verdict
                 row["self_protein"] = sm.nearest_protein
+                row["self_explanation"] = sm.explanation
+                row["nearest_self_peptide"] = sm.nearest_self_peptide
             rows.append(row)
         return {
             "allele": self.allele,
@@ -101,8 +103,10 @@ def run_triage(
     results = screen.score(candidates, allele)
     timings["screen"] = time.perf_counter() - t0
 
-    # Self-similarity: exact matches only across the whole set (it is cheap),
-    # which is what disqualifies a candidate outright.
+    # Self-similarity in two passes, because the two checks differ in cost and
+    # in consequence. Exact matches run over everything (cheap) and disqualify.
+    # The 1-mismatch search is ~1.3 s per peptide, so it runs only on the
+    # survivors, and it FLAGS rather than rejects.
     self_matches: dict = {}
     if proteome is not None:
         t0 = time.perf_counter()
@@ -111,6 +115,16 @@ def run_triage(
         timings["self_similarity"] = time.perf_counter() - t0
 
     shortlist = rank_for_structure(results, top_n, self_matches)
+
+    if proteome is not None and shortlist:
+        t0 = time.perf_counter()
+        for r in shortlist:
+            # Exclude the candidate's own wild-type: every missense neoepitope
+            # is trivially one mismatch from it, so counting it would make the
+            # flag meaningless.
+            self_matches[r.peptide] = proteome.check(
+                r.peptide, near=True, wild_type=r.wt_peptide)
+        timings["near_self_shortlist"] = time.perf_counter() - t0
     return TriageReport(
         allele=allele, variants=variants, candidates=candidates,
         results=results, shortlist=shortlist, timings=timings,

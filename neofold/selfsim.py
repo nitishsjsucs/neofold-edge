@@ -50,10 +50,11 @@ class SelfMatch:
             return ("this exact sequence occurs in the normal human proteome "
                     f"({self.nearest_protein}) — it is a self peptide, not a neoepitope")
         if self.min_mismatches == 1:
-            return (f"differs from a normal human peptide ({self.nearest_self_peptide}, "
-                    f"{self.nearest_protein}) at a single position — elevated "
-                    f"cross-reactivity risk")
-        return "no close match in the reviewed human proteome"
+            return (f"differs at a single position from {self.nearest_self_peptide} in "
+                    f"{self.nearest_protein}, a DIFFERENT human protein from the one "
+                    f"this candidate came from — elevated cross-reactivity risk")
+        return ("no human peptide within one mismatch, excluding the candidate's own "
+                "wild-type counterpart")
 
     def as_dict(self) -> dict:
         return {"peptide": self.peptide, "verdict": self.verdict,
@@ -146,9 +147,17 @@ class SelfProteome:
         self._seed_index[k] = index
         return index
 
-    def find_near(self, peptide: str, max_mismatches: int = 1
-                  ) -> tuple[int, str, str] | None:
-        """Closest self peptide within `max_mismatches`, as (n, seq, protein)."""
+    def find_near(self, peptide: str, max_mismatches: int = 1,
+                  exclude: str | None = None) -> tuple[int, str, str] | None:
+        """Closest self peptide within `max_mismatches`, as (n, seq, protein).
+
+        `exclude` suppresses one sequence, and it is essential rather than
+        optional. Every missense neoepitope is by construction ONE mismatch
+        from its own wild-type counterpart, which is a self peptide -- so
+        without excluding it, every candidate trivially reports "near-self"
+        and the metric carries no information. The question worth asking is
+        whether the peptide resembles some OTHER human protein.
+        """
         self._load()
         k = len(peptide)
         half = k // 2
@@ -163,6 +172,8 @@ class SelfProteome:
                 cand = self._blob[start:start + k]
                 if "*" in cand:
                     continue
+                if exclude is not None and cand == exclude:
+                    continue
                 mism = sum(1 for a, b in zip(cand, peptide) if a != b)
                 if mism <= max_mismatches and (best is None or mism < best[0]):
                     best = (mism, cand, self._protein_at(start))
@@ -170,13 +181,19 @@ class SelfProteome:
                         return best
         return best
 
-    def check(self, peptide: str, near: bool = True) -> SelfMatch:
+    def check(self, peptide: str, near: bool = True,
+              wild_type: str | None = None) -> SelfMatch:
+        """Classify a peptide against the human proteome.
+
+        Pass `wild_type` so the candidate's own unmutated counterpart is not
+        counted as a near-self hit -- see `find_near`.
+        """
         protein = self.find_exact(peptide)
         if protein is not None:
             return SelfMatch(peptide, True, 0, peptide, protein)
         if not near:
             return SelfMatch(peptide, False, None, None, None)
-        hit = self.find_near(peptide, max_mismatches=1)
+        hit = self.find_near(peptide, max_mismatches=1, exclude=wild_type)
         if hit is None:
             return SelfMatch(peptide, False, 2, None, None)
         mism, seq, prot = hit

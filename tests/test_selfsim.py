@@ -62,3 +62,29 @@ def test_verdict_and_explanation_are_populated(proteome):
     m = proteome.check("GAGGVGKSA", near=False)
     assert m.verdict == "is-self"
     assert "normal human proteome" in m.explanation
+
+
+def test_near_self_must_exclude_the_candidates_own_wild_type(proteome):
+    """Without the exclusion the metric is vacuous: every missense neoepitope
+    is one mismatch from its own wild-type, which is a self peptide."""
+    naive = proteome.find_near("GADGVGKSA", max_mismatches=1)
+    assert naive is not None and naive[1] == "GAGGVGKSA", \
+        "expected the naive search to return the candidate's own wild-type"
+    corrected = proteome.find_near("GADGVGKSA", max_mismatches=1, exclude="GAGGVGKSA")
+    assert corrected is None or corrected[1] != "GAGGVGKSA"
+
+
+def test_kras_neoepitope_is_near_self_to_a_different_gtpase(proteome):
+    """The P-loop motif GxxxxGKS is conserved across small GTPases, so the KRAS
+    neoepitope resembles a peptide in RRAD. This is a RISK FLAG, not a
+    disqualifier -- the same epitope is clinically validated as immunogenic
+    (Tran et al., NEJM 2016)."""
+    m = proteome.check("GADGVGKSA", near=True, wild_type="GAGGVGKSA")
+    assert m.verdict == "near-self"
+    assert not m.exact_self, "a near-self flag must never disqualify on its own"
+    assert "RAD" in (m.nearest_protein or ""), m.nearest_protein
+
+
+def test_viral_peptide_has_no_near_self_match(proteome):
+    m = proteome.check("NLVPMVATV", near=True)
+    assert m.verdict == "not-self"
