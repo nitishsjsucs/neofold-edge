@@ -1,0 +1,104 @@
+{
+  "benchmark": "Bjerregaard 2017 (PMC5694748)",
+  "n_pairs": 1947,
+  "n_responders": 53,
+  "base_rate": 0.02722,
+  "rules": [
+    {
+      "rule": "random (base rate)",
+      "kept": 1947,
+      "found": 53,
+      "recall": 1.0,
+      "precision": 0.0272,
+      "enrichment": 1.0
+    },
+    {
+      "rule": "affinity <= 500 nM",
+      "kept": 1370,
+      "found": 49,
+      "recall": 0.9245,
+      "precision": 0.0358,
+      "enrichment": 1.314
+    },
+    {
+      "rule": "affinity <= 50 nM",
+      "kept": 545,
+      "found": 33,
+      "recall": 0.6226,
+      "precision": 0.0606,
+      "enrichment": 2.224
+    },
+    {
+      "rule": "%rank < 2.0 (weak binder)",
+      "kept": 1598,
+      "found": 51,
+      "recall": 0.9623,
+      "precision": 0.0319,
+      "enrichment": 1.172
+    },
+    {
+      "rule": "%rank < 0.5 (strong binder)",
+      "kept": 978,
+      "found": 46,
+      "recall": 0.8679,
+      "precision": 0.047,
+      "enrichment": 1.728
+    },
+    {
+      "rule": "presentation >= 0.10",
+      "kept": 1560,
+      "found": 50,
+      "recall": 0.9434,
+      "precision": 0.0321,
+      "enrichment": 1.177
+    },
+    {
+      "rule": "presentation >= 0.50",
+      "kept": 1061,
+      "found": 46,
+      "recall": 0.8679,
+      "precision": 0.0434,
+      "enrichment": 1.593
+    },
+    {
+      "rule": "DAI >= 10 ALONE",
+      "kept": 204,
+      "found": 10,
+      "recall": 0.1887,
+      "precision": 0.049,
+      "enrichment": 1.801
+    },
+    {
+      "rule": "DAI >= 2 ALONE",
+      "kept": 495,
+      "found": 13,
+      "recall": 0.2453,
+      "precision": 0.0263,
+      "enrichment": 0.965
+    },
+    {
+      "rule": "affinity <= 500 AND DAI >= 10",
+      "kept": 204,
+      "found": 10,
+      "recall": 0.1887,
+      "precision": 0.049,
+      "enrichment": 1.801
+    },
+    {
+      "rule": "affinity <= 500 AND DAI >= 2",
+      "kept": 446,
+      "found": 13,
+      "recall": 0.2453,
+      "precision": 0.0291,
+      "enrichment": 1.071
+    },
+    {
+      "rule": "OURS: presentation >= 0.10 AND <= 500 nM",
+      "kept": 1370,
+      "found": 49,
+      "recall": 0.9245,
+      "precision": 0.0358,
+      "enrichment": 1.314
+    }
+  ]
+}

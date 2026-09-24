@@ -493,6 +493,34 @@ def md() -> dict:
     }
 
 
+@app.get("/api/validation")
+def validation() -> dict:
+    """Measured performance of the screening layer against T-cell assay data.
+
+    This is the only end-to-end accuracy number in the project that is about
+    IMMUNOGENICITY rather than geometry. Benchmark: Bjerregaard et al.,
+    Front Immunol 2017 -- 1,947 neopeptide/HLA pairs from 13 published
+    studies, each with an experimental T-cell assay outcome, 53 positive.
+    Base rate 2.72%.
+    """
+    path = ROOT / "benchmarks" / "screen_validation.json"
+    pk = ROOT / "benchmarks" / "precision_at_k.json"
+    if not path.exists():
+        return {"available": False}
+    d = json.loads(path.read_text())
+    out = {"available": True, **d}
+    if pk.exists():
+        out["precision_at_k"] = json.loads(pk.read_text())
+    out["reading"] = (
+        "Enrichment is the honest headline: at a 2.72% base rate, raw precision "
+        "looks uniformly poor and hides the differences between rules. Ranking "
+        "by presentation score reaches ~14-16% precision in the top 25-100, "
+        "roughly 5x enrichment. Note that our first shipped rule, DAI >= 2, "
+        "scored 0.96x -- worse than random."
+    )
+    return out
+
+
 @app.get("/api/gpu")
 def gpu() -> dict:
     """GPU telemetry, GB10-aware.

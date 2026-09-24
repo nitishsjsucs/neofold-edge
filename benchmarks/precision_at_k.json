@@ -1,0 +1,164 @@
+{
+  "presentation score (desc)": [
+    {
+      "k": 10,
+      "hits": 1,
+      "precision": 0.1
+    },
+    {
+      "k": 25,
+      "hits": 4,
+      "precision": 0.16
+    },
+    {
+      "k": 50,
+      "hits": 7,
+      "precision": 0.14
+    },
+    {
+      "k": 100,
+      "hits": 14,
+      "precision": 0.14
+    },
+    {
+      "k": 200,
+      "hits": 21,
+      "precision": 0.105
+    }
+  ],
+  "affinity nM (asc)": [
+    {
+      "k": 10,
+      "hits": 0,
+      "precision": 0.0
+    },
+    {
+      "k": 25,
+      "hits": 1,
+      "precision": 0.04
+    },
+    {
+      "k": 50,
+      "hits": 2,
+      "precision": 0.04
+    },
+    {
+      "k": 100,
+      "hits": 9,
+      "precision": 0.09
+    },
+    {
+      "k": 200,
+      "hits": 16,
+      "precision": 0.08
+    }
+  ],
+  "%rank (asc)": [
+    {
+      "k": 10,
+      "hits": 3,
+      "precision": 0.3
+    },
+    {
+      "k": 25,
+      "hits": 4,
+      "precision": 0.16
+    },
+    {
+      "k": 50,
+      "hits": 5,
+      "precision": 0.1
+    },
+    {
+      "k": 100,
+      "hits": 7,
+      "precision": 0.07
+    },
+    {
+      "k": 200,
+      "hits": 17,
+      "precision": 0.085
+    }
+  ],
+  "DAI (desc)": [
+    {
+      "k": 10,
+      "hits": 1,
+      "precision": 0.1
+    },
+    {
+      "k": 25,
+      "hits": 2,
+      "precision": 0.08
+    },
+    {
+      "k": 50,
+      "hits": 4,
+      "precision": 0.08
+    },
+    {
+      "k": 100,
+      "hits": 8,
+      "precision": 0.08
+    },
+    {
+      "k": 200,
+      "hits": 9,
+      "precision": 0.045
+    }
+  ],
+  "presented, then DAI": [
+    {
+      "k": 10,
+      "hits": 1,
+      "precision": 0.1
+    },
+    {
+      "k": 25,
+      "hits": 2,
+      "precision": 0.08
+    },
+    {
+      "k": 50,
+      "hits": 4,
+      "precision": 0.08
+    },
+    {
+      "k": 100,
+      "hits": 8,
+      "precision": 0.08
+    },
+    {
+      "k": 200,
+      "hits": 9,
+      "precision": 0.045
+    }
+  ],
+  "presented, then affinity": [
+    {
+      "k": 10,
+      "hits": 0,
+      "precision": 0.0
+    },
+    {
+      "k": 25,
+      "hits": 1,
+      "precision": 0.04
+    },
+    {
+      "k": 50,
+      "hits": 2,
+      "precision": 0.04
+    },
+    {
+      "k": 100,
+      "hits": 9,
+      "precision": 0.09
+    },
+    {
+      "k": 200,
+      "hits": 16,
+      "precision": 0.08
+    }
+  ]
+}

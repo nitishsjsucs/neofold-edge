@@ -321,6 +321,45 @@ A reviewer will ask what we are not modelling. In priority order:
 
 ---
 
+## 6B-3. ✅ The screen, validated against measured T-cell responses
+
+Structure accuracy was always measured against crystals. The **screen** — the layer that actually decides what gets shortlisted — had never been validated at all. Now it has.
+
+**Benchmark:** Bjerregaard *et al.*, *Front Immunol* 2017 — **1,947 neopeptide/HLA pairs** from 13 published studies, each with an experimental T-cell assay outcome and its wild-type counterpart. **53 responders, base rate 2.72%.**
+
+### Rules, ranked by enrichment over random
+
+| Rule | Recall | Precision | Enrichment |
+|---|---|---|---|
+| **affinity ≤ 50 nM** | 62.3% | 6.1% | **2.22×** |
+| DAI ≥ 10 alone | 18.9% | 4.9% | 1.80× |
+| %rank < 0.5 | 86.8% | 4.7% | 1.73× |
+| presentation ≥ 0.50 | 86.8% | 4.3% | 1.59× |
+| **ours** (presentation ≥ 0.10 ∧ ≤ 500 nM) | **92.5%** | 3.6% | 1.31× |
+| affinity ≤ 500 ∧ DAI ≥ 2 | 24.5% | 2.9% | 1.07× |
+| **DAI ≥ 2 alone** (our first shipped rule) | 24.5% | 2.6% | **0.96× — below random** |
+
+**Our original DAI ≥ 2 gate performed worse than chance**, on 1,947 experimentally-tested pairs. That is the empirical confirmation of §0.
+
+### Precision at shortlist size — the number that matters
+
+We do not apply a single cut; we rank and take a top-N for structure prediction. So:
+
+| Ranking strategy | P@10 | P@25 | P@50 | P@100 |
+|---|---|---|---|---|
+| **presentation score** | 10% | **16%** | **14%** | **14%** |
+| %rank | **30%** | 16% | 10% | 7% |
+| raw affinity (nM) | 0% | 4% | 4% | 9% |
+| DAI | 10% | 8% | 8% | 4% |
+
+**Ranking by presentation score gives ~5× enrichment** over the 2.72% base rate at realistic shortlist sizes. Ranking by raw nM is markedly worse, and DAI decays with depth — consistent with it being an anchor detector.
+
+**What to claim:** *"On 1,947 experimentally-tested neopeptides, ranking by our screen puts a true T-cell responder in the top 25 at 16%, against a 2.7% base rate."* That is a measured, held-out, immunogenicity-grounded claim — considerably stronger than any picture of a structure.
+
+**What not to claim:** this is not a held-out test of a *trained* model — MHCflurry may have seen some of these peptides in training. It measures whether the ranking is useful, not whether it generalises to unseen chemistry.
+
+---
+
 ## 6C. The proposed additions, assessed
 
 Three additions were proposed on top of the working pipeline. Two are worth building, one is not.
