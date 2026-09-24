@@ -198,6 +198,20 @@
       <div id="compare"></div>
     </div>
 
+    <div class="card" style="margin-top:14px" id="mdCard" hidden>
+      <h2>Molecular-dynamics stress test</h2>
+      <div class="body" style="padding-bottom:6px">
+        <div class="metrics" id="mdStats" style="border-top:0;padding:0 0 12px"></div>
+        <div id="mdTrace"></div>
+        <div class="legend" style="padding:8px 0 0">
+          <span><i style="background:#0ca30c"></i>Tumour peptide (n=3)</span>
+          <span><i style="background:#fab219"></i>Wild-type (n=3)</span>
+        </div>
+        <div id="mdTable"></div>
+        <div class="hint" id="mdCaveat" style="padding:8px 0 0"></div>
+      </div>
+    </div>
+
     <div class="card" style="margin-top:14px" id="benchCard" hidden>
       <h2>Throughput on one Nano</h2>
       <div class="body" style="padding-bottom:6px">
@@ -250,7 +264,7 @@
 <div id="tip"></div>
 <script src="/static/vendor/molstar.js"></script>
 <script type="module">
-import { drawPae, drawPlddt, drawLandscape, drawScaling } from '/static/charts.js?v=4';
+import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces } from '/static/charts.js?v=5';
 
 const $ = s => document.querySelector(s);
 
@@ -555,6 +569,28 @@ async function run(){
 
   if(tabs.length) await show(tabs[0].id);
   try{ renderCompare(await jget('/api/compare')); }catch(e){}
+
+  try{
+    const md = await jget('/api/md');
+    if(md.available){
+      $('#mdCard').hidden = false;
+      $('#mdStats').innerHTML = [
+        [md.throughput_ns_per_day, 'ns / day'],
+        [md.production_ns_per_run + ' ns', 'per run'],
+        ['OpenMM', 'CUDA on GB10'],
+      ].map(([v,k]) => `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
+      drawMdTraces($('#mdTrace'), md, tip, 'contacts');
+      $('#mdTable').innerHTML = `<div class="cmp" style="margin:12px 0 0">
+        <table><thead><tr><th>Metric</th><th>Tumour</th><th>Wild-type</th><th>Separates?</th></tr></thead><tbody>
+        ${md.metrics.map(m => `<tr${m.separates?' class="key"':''}>
+          <td>${m.name}</td>
+          <td class="v">${m.mutant.mean} <span style="color:var(--muted);font-size:10px">[${m.mutant.min}–${m.mutant.max}]</span></td>
+          <td class="v">${m.wild_type.mean} <span style="color:var(--muted);font-size:10px">[${m.wild_type.min}–${m.wild_type.max}]</span></td>
+          <td class="${m.separates?'yes':'no'}">${m.separates?'Yes — ranges disjoint':'No — ranges overlap'}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+      $('#mdCaveat').innerHTML = '<b>Read this before the numbers.</b> ' + md.caveat;
+    }
+  }catch(e){ console.warn('no md', e); }
 
   try{
     const b = await jget('/api/benchmark');

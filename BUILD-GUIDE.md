@@ -280,7 +280,29 @@ This is not our inference. Sim *et al.* (*PNAS* 2020) report that "only mutant G
 >
 > Two further honest limits: modelling protocols such as PANDORA and APE-Gen place anchors in pockets **by construction**, so burial depth in a model is an artifact, not evidence. And non-binders do not crystallise, so the PDB contains **no control group** for any "non-binder geometry" claim.
 
-### ⚠️ OpenMM stability test — feasible, but frame it as a negative filter only
+### ✅ OpenMM stability test — BUILT AND MEASURED
+
+**OpenMM 8.6.1 runs on the GB10.** `python -m openmm.testInstallation` reports *"3 CUDA — Successfully computed forces"*, all platforms within tolerance. First-party PyPI aarch64 wheels, no conda, no sudo. sm_121 is fine because OpenMM compiles kernels at runtime via NVRTC.
+
+**Measured throughput: ~1,000 ns/day** (6,088 atoms, amber14 + OBC2 implicit solvent, 4 fs with HMR, 1.8 nm cutoff) — far above the 150 ns/day kill threshold. ~1 ns per 90 s run.
+
+**Result, n=3 per condition, KRAS G12D mutant vs wild-type:**
+
+| Metric | Tumour | Wild-type | Separates? |
+|---|---|---|---|
+| **Contact persistence** | 0.765 [0.760–0.769] | 0.670 [0.601–0.711] | **Yes — ranges disjoint** |
+| Final peptide RMSD (Å) | 1.58 [1.19–2.13] | 2.48 [1.99–3.38] | No — ranges overlap |
+| Runs flagged unstable | 0 / 3 | 1 / 3 | directional only |
+
+**Neither peptide was rejected.** MD filtered nothing here, which is the honest outcome. Contact persistence did separate the pair with non-overlapping ranges, but that is **n=3 on one peptide pair over ~1 ns** — suggestive, not a validated discriminator. The largest published study moved AUC only 0.80 → 0.81 using 200 ns runs.
+
+> **One bug worth recording.** Peptide RMSD must be computed **after superposing on the MHC**. Without it, rigid-body tumbling of the whole complex inflates RMSD to ~7 Å even for a crystallographically-validated pose, and the crystal-matched mutant gets falsely "REJECTED". A test now guards against that regression.
+
+**Defensible:** "physics immediately rejects this pose." **Not defensible:** anything about stability, affinity or immunogenicity.
+
+---
+
+### Original assessment (kept for the reasoning)
 
 Verdict: **GO**, with a downgraded timescale.
 

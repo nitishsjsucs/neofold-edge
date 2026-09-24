@@ -271,3 +271,42 @@ export function drawScaling(container, b, tip){
   svg.appendChild(text(padL, 10, 'candidates / hour', {size:9.5}));
   container.appendChild(svg);
 }
+
+/* ------------------------------------------------------- MD contact traces */
+export function drawMdTraces(container, md, tip, key = 'contacts'){
+  container.innerHTML = '';
+  const groups = [['mutant', '#0ca30c'], ['wild_type', '#fab219']];
+  const all = groups.flatMap(([g]) => (md.traces[g] || []).flatMap(r => r[key]));
+  if (!all.length) return;
+
+  const w = container.clientWidth || 380, h = 180, padL = 40, padB = 30;
+  const pw = w - padL - 14, ph = h - padB - 16;
+  const maxT = Math.max(...groups.flatMap(([g]) =>
+    (md.traces[g] || []).flatMap(r => r.t)));
+  const lo = key === 'contacts' ? 0 : 0;
+  const hi = key === 'contacts' ? 1 : Math.max(4, Math.max(...all) * 1.1);
+  const X = t => padL + (t / maxT) * pw;
+  const Y = v => 16 + (1 - (v - lo) / (hi - lo)) * ph;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+  for (const g of [lo, (lo+hi)/2, hi]){
+    svg.appendChild(el('line', {x1:padL, x2:padL+pw, y1:Y(g), y2:Y(g),
+                                stroke:INK.grid, 'stroke-width':1}));
+    svg.appendChild(text(padL-6, Y(g)+3, g.toFixed(key==='contacts'?1:0),
+                         {anchor:'end', size:9}));
+  }
+  for (const [g, colour] of groups){
+    for (const run of (md.traces[g] || [])){
+      const pts = run[key].map((v,i) => `${X(run.t[i])},${Y(v)}`).join(' ');
+      svg.appendChild(el('polyline', {points:pts, fill:'none', stroke:colour,
+                                      'stroke-width':1.6, opacity:.75,
+                                      'stroke-linejoin':'round'}));
+    }
+  }
+  svg.appendChild(text(padL + pw/2, h - 4, 'simulated time (ps)',
+                       {anchor:'middle', size:9.5}));
+  svg.appendChild(text(padL, 10,
+    key === 'contacts' ? 'fraction of starting peptide–HLA contacts retained'
+                       : 'peptide RMSD from starting pose (Å)', {size:9.5}));
+  container.appendChild(svg);
+}

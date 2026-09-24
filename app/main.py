@@ -412,6 +412,63 @@ def benchmark() -> dict:
     }
 
 
+@app.get("/api/md")
+def md() -> dict:
+    """Molecular-dynamics stability check, mutant vs wild-type.
+
+    Read the caveat before the numbers. This is ~1 ns of implicit-solvent
+    dynamics against measured complex half-lives in HOURS, so it samples about
+    10^-13 of the relevant timescale. It is a NEGATIVE filter -- it can reject
+    an implausible pose, and nothing more. A peptide that stays put has not
+    been shown to bind.
+    """
+    import statistics as st
+    md_dir = RESULTS / "md"
+    if not md_dir.exists():
+        return {"available": False}
+
+    runs = {"mutant": [], "wild_type": []}
+    for f in sorted(md_dir.glob("*.json")):
+        role = "wild_type" if "_wt" in f.name else "mutant"
+        runs[role].append(json.loads(f.read_text()))
+    if not runs["mutant"] or not runs["wild_type"]:
+        return {"available": False}
+
+    def stats(rows, key):
+        vals = [r[key] for r in rows]
+        return {"mean": round(st.mean(vals), 3), "min": round(min(vals), 3),
+                "max": round(max(vals), 3), "n": len(vals)}
+
+    cp_m, cp_w = stats(runs["mutant"], "contact_persistence"), stats(runs["wild_type"], "contact_persistence")
+    rm_m, rm_w = stats(runs["mutant"], "final_peptide_rmsd_a"), stats(runs["wild_type"], "final_peptide_rmsd_a")
+    separates = lambda a, b: a["min"] > b["max"] or a["max"] < b["min"]
+
+    return {
+        "available": True,
+        "engine": "OpenMM 8.6.1, CUDA platform, amber14 + OBC2 implicit solvent",
+        "throughput_ns_per_day": round(st.mean(
+            [r["ns_per_day"] for rs in runs.values() for r in rs]), 0),
+        "production_ns_per_run": round(st.mean(
+            [r["production_ns"] for rs in runs.values() for r in rs]), 2),
+        "traces": {k: [{"t": r["frame_times_ps"], "rmsd": r["peptide_rmsd_a"],
+                        "contacts": r["contact_fraction"]} for r in v]
+                   for k, v in runs.items()},
+        "metrics": [
+            {"name": "Contact persistence", "mutant": cp_m, "wild_type": cp_w,
+             "separates": separates(cp_m, cp_w), "higher_is_better": True},
+            {"name": "Final peptide RMSD (A)", "mutant": rm_m, "wild_type": rm_w,
+             "separates": separates(rm_m, rm_w), "higher_is_better": False},
+        ],
+        "caveat": (
+            "~1 ns of implicit-solvent dynamics, n=3 per condition, on ONE peptide "
+            "pair. Contact persistence separated the pair here; peptide RMSD did "
+            "not. Suggestive, not a validated discriminator -- the largest published "
+            "study on this question moved AUC only from 0.80 to 0.81 using 200 ns "
+            "runs. Treat as a red-flag detector, never as evidence of binding."
+        ),
+    }
+
+
 @app.get("/api/gpu")
 def gpu() -> dict:
     """GPU telemetry, GB10-aware.
