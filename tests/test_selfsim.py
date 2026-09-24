@@ -88,3 +88,26 @@ def test_kras_neoepitope_is_near_self_to_a_different_gtpase(proteome):
 def test_viral_peptide_has_no_near_self_match(proteome):
     m = proteome.check("NLVPMVATV", near=True)
     assert m.verdict == "not-self"
+
+
+def test_QC_INVARIANT_every_wildtype_window_is_found_in_the_proteome(proteome):
+    """End-to-end QC on variant mapping, not just on the self filter.
+
+    Every wild-type peptide window we generate is, by construction, a verbatim
+    substring of a normal human protein. If even one is not, something upstream
+    is wrong: the reference sequence, the codon numbering, or the window
+    arithmetic. This catches mapping bugs that produce plausible-looking but
+    fictitious peptides.
+    """
+    from neofold.variants import build_candidates, read_fasta, variants_from_vcf
+    root = PROTEOME.parent.parent.parent
+    ref = read_fasta(str(root / "data" / "sequences" / "proteins.fasta"))
+    variants = variants_from_vcf(str(root / "data" / "demo" / "tumor_variants.vcf"))
+    missing = []
+    for v in variants:
+        if v.uniprot not in ref:
+            continue
+        for c in build_candidates(v, ref[v.uniprot]):
+            if not proteome.check(c.wt_peptide, near=False).exact_self:
+                missing.append((v.label, c.wt_peptide))
+    assert not missing, f"wild-type windows absent from the proteome: {missing[:5]}"

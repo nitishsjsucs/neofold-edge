@@ -8,16 +8,16 @@ import math
 
 import pytest
 
-from neofold.screen import (LUKSZA_EPSILON, MIN_DAI, ScreenResult, damped_dai,
-                            triage)
+from neofold.screen import LUKSZA_EPSILON, ScreenResult, damped_dai, triage
 
 
-def make(mt_nm, wt_nm, presentation=0.5):
+def make(mt_nm, wt_nm, presentation=0.5, mut_offset=4):
     return ScreenResult(candidate_id="X-Y-PEP", peptide="PEPTIDEXX",
                         wt_peptide="PEPTIDEYY", allele="HLA-C*08:02",
                         affinity_nm=mt_nm, wt_affinity_nm=wt_nm,
                         presentation_score=presentation,
-                        wt_presentation_score=0.1, processing_score=0.5)
+                        wt_presentation_score=0.1, processing_score=0.5,
+                        mut_offset=mut_offset)
 
 
 def test_direction_is_wt_over_mt():
@@ -52,10 +52,14 @@ def test_damping_barely_affects_reliable_wild_types():
     assert damped == pytest.approx(raw, rel=0.07)
 
 
-def test_threshold_is_ten_not_two():
-    """Rech 2018's first percentile. We previously used 2, which sits near the
-    null: Rech measured the MEDIAN DAI of ordinary neoantigens as 1.183."""
-    assert MIN_DAI == 10.0
+def test_dai_is_reported_not_gated_on():
+    """DAI is an anchor-creation detector, so gating on it selects for anchor
+    mutations and DISCARDS TCR-facing ones -- the opposite of what
+    immunogenicity needs. A low-DAI peptide that is well presented must still
+    reach the shortlist."""
+    low_dai_well_presented = make(mt_nm=36.0, wt_nm=34.0)
+    tier, _ = triage(low_dai_well_presented)
+    assert tier == "presented", "a low DAI must not exclude a presented peptide"
 
 
 def test_presentation_gate_comes_before_agretopicity():
@@ -66,17 +70,31 @@ def test_presentation_gate_comes_before_agretopicity():
     assert tier == "not presented"
 
 
-def test_comparable_wild_type_binding_is_not_qualified():
-    """The EGFR L858R case: binds well, but so does its wild-type."""
-    tier, reason = triage(make(mt_nm=36.0, wt_nm=34.0))
-    assert tier == "presented, not distinguished"
-    assert "binds comparably" in reason
+def test_tcr_facing_mutation_is_not_penalised_for_low_dai():
+    """EGFR L858R is the motivating case: its mutation sits at peptide
+    position 6, so a DAI near 1 is expected. We previously excluded it."""
+    r = make(mt_nm=36.0, wt_nm=34.0, mut_offset=5)
+    assert r.mutation_site == "TCR-facing"
+    tier, reason = triage(r)
+    assert tier == "presented"
+    assert "TCR-facing" in reason and "not evidence against" in reason
 
 
-def test_strong_differential_qualifies():
-    tier, reason = triage(make(mt_nm=74.0, wt_nm=3656.0))
-    assert tier == "investigate"
-    assert "DAI" in reason and "Rech" in reason
+def test_anchor_mutation_is_flagged_so_a_large_dai_is_not_over_read():
+    """An anchor mutation produces a large DAI by changing MHC binding. The
+    reason string must say so, or the number invites the wrong conclusion."""
+    r = make(mt_nm=74.0, wt_nm=3656.0, mut_offset=1)      # P2 = anchor
+    assert r.mutation_site == "anchor"
+    tier, reason = triage(r)
+    assert tier == "presented"
+    assert "anchor" in reason and "improved MHC binding" in reason
+
+
+def test_anchor_detection_covers_both_primary_anchors():
+    assert make(1.0, 1.0, mut_offset=1).mutation_site == "anchor"     # P2
+    assert make(1.0, 1.0, mut_offset=8).mutation_site == "anchor"     # P-omega
+    assert make(1.0, 1.0, mut_offset=0).mutation_site == "P1"
+    assert make(1.0, 1.0, mut_offset=4).mutation_site == "TCR-facing"
 
 
 def test_self_peptide_beats_every_other_signal():

@@ -247,7 +247,24 @@ Always show the wild-type control. It is the difference between "the model gave 
 
 We audited the pipeline against the primary experimental literature. Three things were wrong and are now fixed.
 
-### 1. The 2× mutant-vs-wildtype threshold was invented
+### 0. ⚠️ Biggest correction: DAI is an anchor detector, not a specificity gate
+
+We first used DAI ≥ 2, then corrected it to DAI ≥ 10 (Rech 2018). **Both were wrong, because gating on DAI at all is wrong.**
+
+The differential is largely an **anchor-creation detector**:
+
+| Mutation position | Effect on MHC binding | Effect on the TCR-facing surface | Resulting DAI |
+|---|---|---|---|
+| **Anchor** (P2, PΩ) | large — sits in the B/F pocket | little | **large** |
+| **TCR-facing** (middle) | little | large — this is what the receptor reads | **~1** |
+
+So a DAI gate **promotes anchor mutants and discards TCR-facing ones** — backwards for immunogenicity. Measured on our own demo set, a `DAI ≥ 10` gate discards **35 of 36** TCR-facing binders while passing **3 of 4** anchor mutants. It excluded **EGFR L858R**, whose mutation sits at peptide position 6.
+
+This is not our inference. Duan 2014, Ghorani 2018 and TESLA all report that essentially every extreme-DAI peptide is an anchor mutant, and **pVACtools ships an "Anchor Criteria" filter that penalises exactly what a DAI gate rewards** — the two pull in opposite directions on the same peptides.
+
+**Now:** presentation is the *only* gate. DAI is reported alongside a **mutation-site annotation** (anchor / TCR-facing / P1), because the number is uninterpretable without it. The UI says so on the row.
+
+### 1. The 2× threshold was invented (superseded by §0, kept for the record)
 
 **No published source supports a 2× cutoff.** The field is bimodal — either no threshold at all (Łuksza 2017/2022, MuPeXI, Neopepsee, antigen.garnish all use it as a *continuous* feature), or **~10×**. Rech *et al.* (*Cancer Immunol Res* 2018) derived **DAI > 10** as the first percentile of the empirical distribution, and measured the **median DAI of ordinary neoantigens as 1.183** — so our 2× cut sat near the middle of the null distribution and enriched for almost nothing.
 
@@ -279,11 +296,12 @@ We briefly implemented TESLA's recognition rule as a disjunction — *low agreto
 |---|---|
 | Variants | 50 |
 | Candidate peptides | 1,890 |
-| **Self peptides cut** | **13** |
-| **Presented** (≤500 nM, presentation ≥ 0.10) | **22** |
-| **Qualified** (DAI ≥ 10) | **3** |
+| **Self peptides cut** (exact proteome match) | **13** |
+| **Presented** (the only gate) | **22** |
 
-Both published KRAS G12D epitopes are in the top 3 (DAI 17.9 and 23.5). `ITDFGRAKL` (EGFR L858R) correctly falls out at DAI 0.9.
+Ranked by presentation. `GADGVGKSAL` leads at 0.051 %rank; `ITDFGRAKL` (EGFR L858R) is retained at 0.037 %rank and annotated *TCR-facing, DAI 0.9 — expected*.
+
+**QC invariant, now a test:** all 1,890 wild-type windows are found verbatim in the human proteome. They must be, by construction — so a single miss would indicate a bug in the reference sequence, codon numbering or window arithmetic. It tests variant mapping end-to-end.
 
 ### Ranked omissions, with measured effect sizes
 

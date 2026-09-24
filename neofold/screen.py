@@ -39,6 +39,31 @@ class ScreenResult:
     processing_score: float
     affinity_percentile: float = float("nan")
     wt_affinity_percentile: float = float("nan")
+    mut_offset: int = -1          # 0-based index of the mutated residue
+
+    @property
+    def mutation_site(self) -> str:
+        """Where the mutation sits in the peptide, which determines what the
+        differential can and cannot tell you.
+
+        Primary anchors are P2 and PΩ (the C-terminal residue); they sit in the
+        B and F pockets and face the MHC. Everything between faces the TCR.
+
+        This matters because a mutation at an anchor changes MHC BINDING (so it
+        produces a large DAI) while a mutation in the middle changes what the
+        T-cell SEES without necessarily changing binding at all (so its DAI is
+        ~1). Ranking on DAI therefore selects for anchor mutations and
+        de-selects TCR-facing ones -- the opposite of what immunogenicity
+        needs. Reported so the DAI is never read without it.
+        """
+        if self.mut_offset < 0:
+            return "unknown"
+        last = len(self.peptide) - 1
+        if self.mut_offset in (1, last):
+            return "anchor"
+        if self.mut_offset == 0:
+            return "P1"
+        return "TCR-facing"
 
     @property
     def dai(self) -> float:
@@ -112,6 +137,7 @@ class ScreenResult:
                                        else round(self.wt_affinity_percentile, 3)),
             "binder_class": self.binder_class,
             "wt_binder_class": self.wt_binder_class,
+            "mutation_site": self.mutation_site,
         }
 
 
@@ -179,6 +205,7 @@ class PeptideScreen:
                 affinity_percentile=m.get("affinity_percentile", float("nan")),
                 wt_affinity_percentile=(w.get("affinity_percentile", float("nan"))
                                         if w else float("nan")),
+                mut_offset=cand.mut_offset,
             ))
         results.sort(key=lambda r: r.presentation_score, reverse=True)
         return results
@@ -268,58 +295,56 @@ def damped_dai(wt_affinity_nm: float, mt_affinity_nm: float) -> float:
 def triage(result: ScreenResult, self_match=None) -> tuple[str, str]:
     """Classify a candidate and say why, in plain language.
 
-    Explicit rules rather than a blended score, so every row in the UI explains
-    itself and a reviewer can disagree with a named threshold rather than a
-    black box.
+    DESIGN CHANGE, forced by the literature. We previously GATED on DAI >= 10.
+    That was wrong in a way that is worse than an arbitrary threshold: the
+    differential is largely an anchor-creation detector.
+
+      * a mutation at an anchor (P2 / PΩ) changes MHC binding, producing a
+        large DAI, but is LESS likely to change the surface a TCR reads;
+      * a mutation in the middle changes what the T-cell sees while leaving
+        binding roughly unchanged, so its DAI sits near 1.
+
+    Gating on DAI therefore discards TCR-facing mutations -- including
+    validated targets such as EGFR L858R, whose mutation sits at peptide
+    position 6 -- while promoting anchor mutations. Duan 2014, Ghorani 2018
+    and TESLA all report that essentially every extreme-DAI peptide is an
+    anchor mutant, and pVACtools ships an "Anchor Criteria" filter that
+    PENALISES precisely what a DAI gate rewards.
+
+    So: presentation is the only gate. Everything else annotates and ranks.
     """
-    # Step 0. A peptide that IS a normal human peptide is not a target at all,
-    # however well it binds -- T-cells against it face central tolerance.
+    # The one hard disqualification. A peptide that IS a normal human peptide
+    # is not a target at any binding strength: T-cells against it face central
+    # tolerance and would be autoreactive.
     if self_match is not None and self_match.exact_self:
         return ("self peptide", (
             f"disqualified: this exact sequence occurs in the normal human "
             f"proteome ({self_match.nearest_protein}), so it is not a "
             f"tumour-specific target regardless of predicted binding"))
 
-    # Step 1. Presentation gate. Everything downstream is conditional on this,
-    # which is the TESLA finding.
-    presentable = (result.presentation_score >= MIN_PRESENTATION
-                   and result.affinity_nm <= WEAK_BINDER_NM)
-    if not presentable:
+    rank = result.affinity_percentile
+    rank_txt = f"{rank:.2f} %rank" if rank == rank else f"{result.affinity_nm:.0f} nM"
+
+    if not (result.presentation_score >= MIN_PRESENTATION
+            and result.affinity_nm <= WEAK_BINDER_NM):
         return ("not presented", (
-            f"predicted affinity {result.affinity_nm:.0f} nM and presentation "
-            f"score {result.presentation_score:.2f} — below the bar for being "
-            f"displayed at all, so downstream evidence does not apply"))
+            f"{rank_txt}, presentation score {result.presentation_score:.2f} — "
+            f"below the bar for being displayed at all"))
 
-    # Step 2. Recognition.
-    #
-    # TESLA's recognition rule is a disjunction: "low agretopicity OR high
-    # foreignness". We implement ONLY the agretopicity half, deliberately.
-    #
-    # TESLA's "foreignness" is similarity to known pathogen epitopes -- the
-    # Łuksza R term, a BLOSUM62 alignment score against ~2,500 IEDB epitopes.
-    # Our self-similarity search measures something DIFFERENT: distance from
-    # the human proteome (closer to Richman et al., Cell Syst 2019
-    # "dissimilarity"). Substituting one for the other would be wrong, and
-    # when we tried it the disjunction admitted candidates with DAI ~0.9 that
-    # the differential had correctly rejected. So dissimilarity-to-self is
-    # reported as a FLAG and never qualifies a candidate on its own.
-    dai = result.dai
-    if dai >= MIN_DAI:
-        note = ""
-        if self_match is not None and self_match.min_mismatches is not None:
-            note = (" and has no human peptide within one substitution"
-                    if self_match.min_mismatches > 1
-                    else f" (note: resembles {self_match.nearest_protein}, "
-                         f"one substitution away)")
-        return ("investigate", (
-            f"presented ({result.affinity_nm:.0f} nM) and binds {dai:.0f}x better "
-            f"than the wild-type peptide, above the DAI ≥ {MIN_DAI:.0f} bar "
-            f"(Rech 2018){note}"))
+    dai, site = result.dai, result.mutation_site
+    if site == "anchor":
+        caveat = (" The mutation is at an anchor position, so a large DAI here "
+                  "reflects improved MHC binding rather than a changed T-cell "
+                  "surface.")
+    elif site == "TCR-facing":
+        caveat = (" The mutation is TCR-facing, so a DAI near 1 is expected and "
+                  "is not evidence against this candidate.")
+    else:
+        caveat = ""
 
-    return ("presented, not distinguished", (
-        f"presented ({result.affinity_nm:.0f} nM) but the wild-type peptide binds "
-        f"comparably ({result.wt_affinity_nm:.0f} nM, DAI {dai:.1f}) — below the "
-        f"DAI ≥ {MIN_DAI:.0f} bar, so healthy cells are predicted to present it too"))
+    return ("presented", (
+        f"presented at {rank_txt} ({result.binder_class} binder); germline "
+        f"counterpart is a {result.wt_binder_class} binder, DAI {dai:.1f}.{caveat}"))
 
 
 def rank_for_structure(results: list[ScreenResult], k: int,
@@ -332,6 +357,8 @@ def rank_for_structure(results: list[ScreenResult], k: int,
     peptide that IS a normal human peptide is not a target at all.
     """
     sm = self_matches or {}
-    qualified = [r for r in results
-                 if triage(r, sm.get(r.peptide))[0] == "investigate"]
-    return qualified[:k]
+    presented = [r for r in results if triage(r, sm.get(r.peptide))[0] == "presented"]
+    # Rank by presentation, which is the gate the evidence supports. DAI breaks
+    # ties but never excludes, because it is an anchor detector (see `triage`).
+    presented.sort(key=lambda r: (r.presentation_score, r.dai), reverse=True)
+    return presented[:k]

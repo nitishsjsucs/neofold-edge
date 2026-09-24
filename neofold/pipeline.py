@@ -41,10 +41,7 @@ class TriageReport:
             "self_peptides": sum(1 for r in self.results
                                  if triage(r, self.self_matches.get(r.peptide))[0] == "self peptide"),
             "presented": sum(1 for r in self.results
-                             if triage(r, self.self_matches.get(r.peptide))[0]
-                             not in ("self peptide", "not presented")),
-            "investigate": sum(1 for r in self.results
-                               if triage(r, self.self_matches.get(r.peptide))[0] == "investigate"),
+                             if triage(r, self.self_matches.get(r.peptide))[0] == "presented"),
             "shortlist": len(self.shortlist),
         }
 

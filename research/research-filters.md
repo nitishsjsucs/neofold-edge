@@ -19,10 +19,10 @@ proteome already vendored at `data/reference/human_sp.fasta.gz` and the repo's o
 | Extra self-hits gained by switching to a 13× larger isoform reference | **0.05 % (2 / 3983)** |
 | KRAS G12D on HLA-C\*08:02, `GADGVGKSA` vs WT | 74.1 nM vs 3656.5 nM → **49.4×** |
 | KRAS G12D on HLA-A\*11:01, `VVVGADGVGK` vs WT | 47.0 nM vs 40.8 nM → **0.87×** |
-| KRAS G12D windows on A\*11:01 passing the current `MIN_FOLD_CHANGE = 2.0` | **0 of 14** |
-| Demo-panel binders whose mutation is at an **anchor**, passing `DAI ≥ 2` | **4 / 4 = 100 %** |
-| Demo-panel binders whose mutation is **TCR-facing**, passing `DAI ≥ 2` | **7 / 36 = 19 %** |
-| Demo-panel binders discarded by the `DAI ≥ 2` gate | **29 / 40** (incl. BRAF V600E, EGFR L858R, KRAS G12V/D/A) |
+| KRAS G12D windows on A\*11:01 passing the live `MIN_DAI = 10.0` gate | **0 of 14** |
+| Demo-panel binders whose mutation is at an **anchor**, passing `DAI ≥ 10` | **3 / 4 = 75 %** |
+| Demo-panel binders whose mutation is **TCR-facing**, passing `DAI ≥ 10` | **1 / 36 = 3 %** |
+| Demo-panel binders discarded by the `DAI ≥ 10` gate | **36 / 40** (incl. BRAF V600E, KRAS G12V/D/A, KIT D816V) |
 | Self-similarity yield: applied first vs after the binding screen | **13 vs 0** — same 11 survivors |
 | GTEx **v11** median-TPM file (current release, 2026-01-15) | **10,129,906 B**, 74,628 genes × 68 cols |
 | NY-ESO-1 (`CTAG1B`) max median TPM across GTEx v11 | **0.065** — *fails* a TPM ≥ 1 inclusion filter |
@@ -32,7 +32,7 @@ proteome already vendored at `data/reference/human_sp.fasta.gz` and the repo's o
 
 ---
 
-## 0. TL;DR — six decisions
+## 0. TL;DR — seven decisions
 
 1. **Self-similarity: hard-drop on exact match only. Never hard-drop on "≤1 mismatch".**
    A ≤1-mismatch rule is not conservative, it is *degenerate*: 99.50 % of missense-derived 9-mers sit one
@@ -47,7 +47,7 @@ proteome already vendored at `data/reference/human_sp.fasta.gz` and the repo's o
 
 3. **You already compute DAI and call it something else — and it is currently a gate that deletes KRAS G12D.**
    `ScreenResult.fold_change` (= WT nM / MT nM) *is* the modern differential agretopicity index. Measured:
-   **all 14** KRAS G12D windows on HLA-A\*11:01 fail the existing `MIN_FOLD_CHANGE = 2.0` gate, including a
+   **all 14** KRAS G12D windows on HLA-A\*11:01 fail the live `MIN_DAI = 10.0` gate, including a
    47 nM binder at presentation score 0.910. Name it, cite it (Duan 2014), **demote it from a gate to a
    score**, and add the published fix — **anchor-position annotation** (Xia 2023, *Sci Immunol*, which
    measured 7–41 % of candidates misclassified this way). §1.2, §1.5a, §5
@@ -70,10 +70,22 @@ proteome already vendored at `data/reference/human_sp.fasta.gz` and the repo's o
    the binding screen — same filter, same data, same 11 survivors. Report one declared gate order, or
    report each filter's independent yield. Do not mix. §4
 
+7. **The similarity *scores* do not earn a gate — but be precise about which are disproven and which are
+   merely untested.** Łuksza *foreignness* scores **AUC 0.516 — indistinguishable from random** on the
+   largest independent benchmark, and the NeoFox self-similarity kernel **failed to replicate** (p = 0.24)
+   at 9× the original sample size by a superset of its own authors. Richman *dissimilarity*, by contrast,
+   was **never independently tested at all** — not by TESLA, not by that benchmark. "Unvalidated" is a
+   weaker and more defensible claim than "disproven"; do not conflate them. And note the direction they
+   were all validated *for*: **immunogenicity enrichment, never toxicity**. §1.6a
+
 **The single biggest trap in this work:** treating a self-similarity filter as a safety guarantee. It is
-not one. It removes one specific, cheap, mechanical reason a candidate is wrong. It says nothing about
-actual autoimmune risk, and there is no clinical evidence that self-similarity filtering has ever
-prevented an autoimmune event in a human. §1.8
+not one. It removes one specific, cheap, mechanical reason a candidate is wrong. There is **no clinical
+evidence** that self-similarity filtering has ever prevented an autoimmune event in a human; no trial has
+run the counterfactual; and the sequence similarity of the MAGE-A3/titin pair that killed two patients is
+**lower** than that of a randomly chosen peptide to its own nearest human neighbour — so no threshold
+could have caught it without deleting every candidate. The filter that the leading clinical platform
+actually deploys for autoimmunity risk is an **expression filter over wild-type genes in critical
+organs** (§2.2), not a sequence filter. §1.6a, §1.7
 
 ---
 
@@ -365,16 +377,20 @@ each window, so this cross-tabulation cost nothing. Of the 1,890 candidates on H
 predicted binders (presentation ≥ 0.10 and ≤ 500 nM). Classifying each by whether the mutation sits at an
 anchor (P2 or PΩ) or faces the TCR:
 
-| Binders, by mutation position | n | pass `DAI ≥ 2` | **discarded by the gate** |
+*(Measured against the **live** `MIN_DAI = 10.0` in `neofold/screen.py`. The earlier `MIN_FOLD_CHANGE = 2.0`
+gave 4/4 anchor and 7/36 TCR-facing; raising the bar to 10 makes the asymmetry worse, not better.)*
+
+| Binders, by mutation position | n | pass `DAI ≥ 10` | **discarded by the gate** |
 |---|---|---|---|
-| **anchor** (P2 / PΩ) | 4 | **4 (100 %)** | 0 |
-| **TCR-facing** | 36 | 7 (19 %) | **29** |
+| **anchor** (P2 / PΩ) | 4 | **3 (75 %)** | 1 |
+| **TCR-facing** | 36 | **1 (3 %)** | **35** |
 
-**The DAI ≥ 2 gate is, empirically, an "anchor mutations only" filter.** It passes every single
-anchor-mutation binder and rejects four out of five TCR-facing ones. That is not a side effect — it is
-exactly what Duan designed DAI to detect, working as specified, being used for the wrong job.
+**The DAI gate is, empirically, an "anchor mutations only" filter.** It keeps three of four anchor-mutation
+binders and rejects **35 of 36** TCR-facing ones. That is not a side effect — it is exactly what Duan
+designed DAI to detect, working as specified, being used for the wrong job. Overall it leaves
+**4 of 40 predicted binders** standing.
 
-The 29 discarded binders are a roll-call of the canonical actionable drivers:
+The discarded binders are a roll-call of the canonical actionable drivers:
 
 ```
 KRAS G12V    VVVGAVGVGK   P6    35.8 nM  pres=0.959  DAI=1.14   DISCARDED
@@ -384,15 +400,33 @@ KRAS G12D    VVVGADGVGK   P6    47.0 nM  pres=0.910  DAI=0.87   DISCARDED
 EGFR L122Y   AVYSNYDANK   P3    31.3 nM  pres=0.867  DAI=1.12   DISCARDED
 KRAS G12A    VVVGAAGVGK   P6    37.5 nM  pres=0.865  DAI=1.09   DISCARDED
 BRAF V600E   KIGDFGLATEK  P10   52.9 nM  pres=0.857  DAI=1.05   DISCARDED
-EGFR L858R   KITDFGRAK    P7    48.1 nM  pres=0.850  DAI=0.58   DISCARDED
+KIT  D816V   VIKNDSNYVVK  P1   121.2 nM  pres=0.852  DAI=8.67   DISCARDED  <- misses by 1.33
 ```
+
+That last row is worth staring at: `KIT D816V` at DAI 8.67 is discarded and an otherwise identical
+candidate at 10.01 is kept. Whatever the literature says about where the empirical DAI distribution sits,
+a hard cut through a continuous, noisy, allele-dependent quantity manufactures exactly this kind of
+arbitrary boundary. That is an argument for ranking, not for a better threshold.
 
 **Losing BRAF V600E and EGFR L858R** — at 53 nM / 0.857 and 48 nM / 0.850 — is not a defensible outcome
 for a neoantigen prioritisation tool.
 
-⚠️ **Do not quote the 72 % (29/40) as a population rate.** `tumor_variants_large.vcf` is a curated
+**⚠ One contrary data point, stated honestly.** TESLA evaluated *mutational position* as one of five
+candidate features and reported that *"neither peptide hydrophobicity nor mutational position was found to
+be important for optimal filtering"* — its optimal filter used only affinity, abundance and stability.
+That is a real tension with Xia 2023 and with the table above, and you should not pretend otherwise.
+
+The reconciliation that survives both results: **anchor position is not useful as a *presentation* filter
+(TESLA's question), but it is useful for deciding whether a low agretopicity value means anything
+(Xia's question).** The two papers tested different things. And TESLA supports the same bottom line from
+the other direction — verbatim, submissions that prioritised *"agretopicity … without accounting for
+presentation, either had no difference in performance or performed worse."* Both point to:
+**presentation first, agretopicity as a score, anchor status as the annotation that explains a low score.**
+Neither supports agretopicity as a gate.
+
+⚠️ **Do not quote the 88 % (35/36 TCR-facing) as a population rate.** `tumor_variants_large.vcf` is a curated
 hotspot-driver panel and is heavily enriched for exactly this class. The honest population figure is
-Xia 2023's **7–41 % across 923 tumour samples**. Report the 72 % as what it is: the effect on *this*
+Xia 2023's **7–41 % across 923 tumour samples**. Report the 88 % as what it is: the effect on *this*
 demo panel, where it happens to be severe because hotspot drivers are disproportionately TCR-facing.
 
 **Concretely:** anchor positions are **allele-specific** — P2 and PΩ is a good default for most class I
@@ -486,7 +520,8 @@ a **2012 arXiv preprint that was never peer reviewed** (arXiv:1205.6031).
 
 | Finding | Source |
 |---|---|
-| **Foreignness score alone: AUC 0.516 — "performs similarly to random predictions"** across three evaluation sets, 3,033 neo-epitope–HLA pairs | Wan et al. 2024, *NAR Cancer* 6:zcae002, doi `10.1093/narcan/zcae002` |
+| **Foreignness score alone: AUC 0.516 — "performs similarly to random predictions"** across three evaluation sets, 3,033 neo-epitope–HLA pairs. Verbatim, verified against the full text. | Wan et al. 2024, *NAR Cancer* 6:zcae002, doi `10.1093/narcan/zcae002` |
+| Even where foreignness *was* retained as a model feature, it *"only accounts for **1.7 % of feature importances** … ranking at the **bottom five least important features**, along with the amino acids cysteine, histidine, asparagine and tryptophan"* | ibid. |
 | **TESLA never tested dissimilarity-to-self-proteome at all.** Its foreignness result rests on **12 immunogenic vs 17 non-immunogenic** pMHC, with foreignness *pooled* with agretopicity into one "recognition" variable rather than shown independently significant | Wells et al. 2020, *Cell* 183:818–834.e13, doi `10.1016/j.cell.2020.09.015` |
 | TESLA, verbatim: *"submissions that explicitly prioritized peptide foreignness…, agretopicity…, or both…, **without accounting for presentation, either had no difference in performance or performed worse**"* | ibid. |
 | Bjerregaard's own conclusion: *"self-similarity in general is a **relatively poor predictor** for peptide immunogenicity"* — AUC 0.65 on a post-hoc subgroup of ~25 positives, where NetMHCpan EL %Rank scored **0.72** on the same data | Bjerregaard 2017 |
@@ -557,6 +592,32 @@ two neurological deaths (Morgan et al. 2013, *J Immunother* 36:133–151, doi `1
 sits at **rank 3** in a proteome scan and was trivially findable — that was an **expression-atlas failure**,
 not a sequence-similarity failure.)*
 
+#### The distinction that actually justifies "annotate, don't gate"
+
+This is stronger ground than "the metrics are weak", and it is the framing to use:
+
+> Every one of these metrics was validated for **immunogenicity enrichment** — "prefer dissimilar/foreign,
+> they are more immunogenic". **None was validated for toxicity** — "exclude similar, they are dangerous".
+> Those are different claims, and because both are computed from the *same BLOSUM alignment*, the slippage
+> between them is invisible in the code. Only the first has any human correlative support.
+
+And note what the field's own best-developed model does with near-self information. Łuksza 2022
+(*Nature* 606:389–395, doi `10.1038/s41586-022-04735-9`) defines quality as
+
+```
+quality = ( w * logC + (1-w) * logA ) * R        w = 0.22402192838740312
+logC = a distance between the mutant peptide and ITS OWN WILD-TYPE,
+       from a 20x20 substitution matrix fitted to measured TCR activation data,
+       with per-position weights (heaviest at P5-P7, lightest at the termini)
+```
+
+`logC` is precisely a near-self measure — and it enters as a **graded, weighted, positive contributor to a
+continuous score**, never as a gate. "Near-self is informative" is defensible. "Near-self should gate" is
+not. That is exactly the position recommended here, stated in the field's own vocabulary.
+
+*(Note the position weights: P5–P7 heaviest, termini lightest. That is the same anchor-vs-TCR-facing
+insight as §1.5a, arrived at independently from TCR activation measurements rather than from structure.)*
+
 #### What to actually build
 
 1. **Keep the exact-match gate from §1.5.** It is not a similarity metric; it is a category check, and it
@@ -564,7 +625,8 @@ not a sequence-similarity failure.)*
 2. **Compute R and D as annotations if you want them**, reimplemented from the formulas above (not
    vendored), with the reference set pinned and versioned in `PROVENANCE.txt`. Justify them on
    **immunogenicity-enrichment** grounds — where the correlative human data actually are — and never as a
-   safety control.
+   safety control. If you cite their status, be precise: *foreignness* has been tested and performs at
+   chance; *dissimilarity* has never been independently tested. Those are different sentences.
 3. **If you want a real safety filter, build the two things with actual support:** wild-type gene
    expression in critical normal tissues (§2.2 — what the clinical platforms actually deploy), and, if you
    ever extend it, similarity to the **measured** benign immunopeptidome (HLA Ligand Atlas, Marcu et al.
@@ -579,9 +641,16 @@ Write these into the code as docstrings and into the UI as caveats:
 
 - **It does not establish immunogenicity.** Absence from the proteome removes one reason a candidate would
   fail. It supplies no reason it would succeed.
-- **It does not establish safety.** There is no clinical evidence that self-similarity filtering has
-  prevented an autoimmune event in any human. It is a theoretical argument, implemented because it is
-  cheap and mechanically sound, not because it is validated as a safety measure.
+- **It does not establish safety, and the evidence gap is total.** No trial has ever run the
+  counterfactual — there is no unfiltered comparator arm anywhere in the literature. None of the landmark
+  vaccine trials (Ott 2017, Hu 2021, Rojas 2023) used a sequence self-similarity filter at all. In the
+  randomised KEYNOTE-942, immune-mediated AEs were **36 % with the vaccine vs 36 % without**. The leading
+  clinical platform's own protocol calls the risk "*Theoretically*" and mitigates it with a **wild-type
+  expression filter over critical organs, not a sequence filter**. Self-similarity filtering is
+  implemented here because it is cheap and mechanically sound, **not** because it is validated. §1.6a
+- **It would not have caught the disasters it is invoked to prevent.** The MAGE-A3/titin pair scores
+  **below** what an arbitrary 9-mer scores against its own nearest human neighbour (20 vs median 34), and
+  titin ranks only ~1,003rd of 11.25 M human 9-mers. Any threshold that flags it flags everything. §1.6a
 - **It does not model tolerance.** Real central tolerance depends on thymic expression level, AIRE
   regulation, and the affinity of the negative-selection step. A FASTA membership test models none of that.
 - **It does not model TCR cross-reactivity.** Cross-reactivity is a property of the TCR-facing residues and
@@ -720,6 +789,14 @@ MAGE-A3 TCR deaths were **off-target cross-reactivity to TTN**, which GTEx flags
 population medians are actually good for, and it pairs naturally with the self-similarity filter in §1.
 
 **Build the safety direction. Do not build the inclusion gate.**
+
+**This is not a novel idea — it is what the leading clinical platform actually does.** The Genentech
+IMCODE001 protocol (NCT03815058) describes its autoimmunity risk mitigation as *"a database that provides
+comprehensive information about expression levels of respective wild-type genes in healthy tissues…
+Mutations occurring in proteins with a possible higher auto-immunity risk in critical organs are filtered
+out."* A wild-type expression filter over critical organs — not a sequence-similarity filter. If you build
+this, you are matching clinical practice, and you can say so. (The same protocol calls the underlying
+cross-reactivity risk "**Theoretically**" — see §1.6a for why that hedge is well earned.)
 
 ### 2.3 Data sources — verified URLs and sizes
 
@@ -1149,13 +1226,14 @@ pipeline as it stands today, produced with your own code and your own data.
 
 **Same mutation, two alleles, opposite verdicts.** MHCflurry 2.2.1, measured this session:
 
-| Epitope | Allele | MT | WT | MT nM | WT nM | DAI (fold) | Verdict under `MIN_FOLD_CHANGE = 2.0` |
+| Epitope | Allele | MT | WT | MT nM | WT nM | DAI (fold) | Verdict under `MIN_DAI = 10.0` |
 |---|---|---|---|---|---|---|---|
 | Tran 2016 NEJM, TIL regression | HLA-C\*08:02 | `GADGVGKSA` | `GAGGVGKSA` | 74.1 | 3656.5 | **49.4×** | ✅ passes |
 | Validated TCR-T target | HLA-A\*11:01 | `VVVGADGVGK` | `VVVGAGGVGK` | 47.0 | 40.8 | **0.87×** | ❌ **discarded** |
 | same, 9-mer | HLA-A\*11:01 | `VVGADGVGK` | `VVGAGGVGK` | 81.6 | 55.3 | **0.68×** | ❌ **discarded** |
 
-**All 14 KRAS G12D windows on HLA-A\*11:01 fail the `fold_change >= 2.0` gate.** Two of them are strong
+**All 14 KRAS G12D windows on HLA-A\*11:01 fail the `DAI >= 10` gate** — and they also failed the earlier
+`fold_change >= 2.0` gate, so this is not an artefact of the threshold change. Two of them are strong
 binders (47.0 nM at presentation score 0.910; 81.6 nM at 0.573). The pipeline as written outputs
 **zero** KRAS G12D candidates for an A\*11:01 patient.
 
@@ -1220,8 +1298,43 @@ surface. DAI is structurally blind to this entire mechanism.
 - [ ] Run with CWD = `TLStab/` (hardcoded relative weight paths)
 - [ ] Report output as **hours**, and note the README/code contradiction
 - [ ] Treat 0.0 and 68.97 h as saturation artefacts
+- [ ] Use TESLA's **> 1.4 h** threshold and cite Wells 2020; flag HLA-C and non-9-mers as out-of-distribution
+
+**Similarity scores (§1.6a) — optional, and only as annotations**
+- [ ] Do **not** implement the Bjerregaard/NeoFox kernel (failed to replicate, p = 0.24 at 9× sample size)
+- [ ] If you implement Łuksza R or Richman D: reimplement from the formulas, do **not** vendor
+      antigen.garnish (restrictive licence); pin and version the IEDB / proteome reference in `PROVENANCE.txt`
+- [ ] Never describe any of these as a safety control — justify on immunogenicity-enrichment grounds only
 
 **Ordering**
 - [ ] Annotate every candidate with every filter; gate only at exact-self and at top-k
 - [ ] Report both the declared gate sequence and each filter's independent yield
-- [ ] Demote `fold_change` from an AND-gate to a ranking score (§5)
+- [ ] Demote `fold_change` / `MIN_DAI` from an AND-gate to a ranking score (§5)
+
+---
+
+## 7. What in this document is NOT verified
+
+Everything in the ground-truth table at the top was computed in this session and can be re-run. The
+literature claims were checked against primary sources — code, data files, or full text — wherever
+possible. These specific points were **not** independently verified and should not be restated as fact:
+
+- **Sahin 2017 (*Nature* 547:222–226) adverse-event profile and epitope-selection pipeline.** Paywalled and
+  not in Europe PMC. The claim "no autoimmunity reported" rests on secondary sources for this trial only.
+- **The circularity argument against Richman's AUC 0.85** — that the Chowell 2015 validation set's negative
+  class is largely self peptides, so a dissimilarity-to-self metric is partly scoring the label — is an
+  analytical reading, **not a published rebuttal**. No paper makes this criticism of Richman specifically.
+- **The IEDB Calis 2013 exact weight vector and amino-acid scale** were not retrieved; pull them from the
+  distributed source at `tools.iedb.org/immunogenicity/` if you implement it.
+- **What the NeoFox correction (doi `10.1093/bioinformatics/btad763`) actually corrects** is unknown.
+- **PRIME's packaging and ARM64 status** were not directly confirmed (README 404s on both branches).
+- **NetTCR-2.2** has no peer-reviewed version found; Expitope could not be verified at all.
+- **The 2,552 (paper) vs 2,558 (shipped file) IEDB epitope-count discrepancy** in Łuksza 2017 is unexplained.
+- **The 54-bulk-vs-14-LCM GTEx column split and the HGNC ambiguity counts** in §2.3–2.4 were measured, but by
+  a separate agent in this session rather than re-derived here; the GTEx v11 file size, dimensions and the
+  NY-ESO-1 / SSX2 / MAGEA1 / TTN values **were** re-verified directly.
+
+One process note: `neofold/selfsim.py`, `data/reference/`, and the `MIN_DAI` change in `neofold/screen.py`
+appeared in the working tree **during** this research session, from a parallel session, and have since been
+committed. The measurements in §1.5b and §1.5a were taken against that live code. If it has moved again,
+re-run the scripts rather than trusting the numbers here.
