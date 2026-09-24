@@ -354,7 +354,21 @@ We do not apply a single cut; we rank and take a top-N for structure prediction.
 
 **Ranking by presentation score gives ~5× enrichment** over the 2.72% base rate at realistic shortlist sizes. Ranking by raw nM is markedly worse, and DAI decays with depth — consistent with it being an anchor detector.
 
-**What to claim:** *"On 1,947 experimentally-tested neopeptides, ranking by our screen puts a true T-cell responder in the top 25 at 16%, against a 2.7% base rate."* That is a measured, held-out, immunogenicity-grounded claim — considerably stronger than any picture of a structure.
+### Discrimination (AUC), and the anchor hypothesis confirmed by measurement
+
+| Score | Overall AUC | On anchor mutations | On TCR-facing mutations |
+|---|---|---|---|
+| **presentation score** | **0.777** | 0.719 | **0.801** |
+| affinity (nM) | 0.755 | — | — |
+| %rank | 0.744 | — | — |
+| **DAI** | **0.592** | **0.660** | **0.577** |
+| wild-type affinity alone | 0.678 | — | — |
+
+DAI is close to uninformative overall (0.592 against 0.5 for no information), and it performs **better on anchor mutations than on TCR-facing ones**, while presentation shows the **opposite** pattern. That is the anchor-detector claim confirmed by measurement rather than by citation.
+
+Per-allele: HLA-B\*35:01 0.806, A\*02:01 0.773, A\*11:01 0.741, A\*01:01 0.722. Strata with fewer than ~5 responders (B\*15:01, B\*07:02, all 11-mers) are noise and are labelled as such — the 11-mer AUC of 0.233 rests on a single positive.
+
+**What to claim:** *"On 1,947 experimentally-tested neopeptides, ranking by our screen puts a true T-cell responder in the top 25 at 16%, against a 2.7% base rate (AUC 0.777)."* That is a measured, held-out, immunogenicity-grounded claim — considerably stronger than any picture of a structure.
 
 **What not to claim:** this is not a held-out test of a *trained* model — MHCflurry may have seen some of these peptides in training. It measures whether the ranking is useful, not whether it generalises to unseen chemistry.
 

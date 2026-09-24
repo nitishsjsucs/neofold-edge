@@ -1,0 +1,84 @@
+{
+  "benchmark": "Bjerregaard 2017 (PMC5694748)",
+  "n": 1947,
+  "responders": 53,
+  "base_rate": 0.0272,
+  "auc_overall": {
+    "presentation_score": 0.777,
+    "affinity_nm": 0.755,
+    "affinity_percentile": 0.744,
+    "dai": 0.592,
+    "wt_affinity_nm": 0.678
+  },
+  "auc_by_mutation_site": {
+    "anchor": {
+      "n": 481,
+      "responders": 15,
+      "presentation": 0.719,
+      "dai": 0.66
+    },
+    "tcr_facing": {
+      "n": 1466,
+      "responders": 38,
+      "presentation": 0.801,
+      "dai": 0.577
+    }
+  },
+  "auc_by_length": {
+    "9": {
+      "n": 775,
+      "responders": 33,
+      "presentation": 0.71
+    },
+    "10": {
+      "n": 738,
+      "responders": 18,
+      "presentation": 0.752
+    },
+    "11": {
+      "n": 409,
+      "responders": 1,
+      "presentation": 0.233,
+      "note": "only 1 responder -- not interpretable"
+    }
+  },
+  "auc_by_allele": {
+    "HLA-A*02:01": {
+      "n": 640,
+      "responders": 25,
+      "presentation": 0.773
+    },
+    "HLA-A*11:01": {
+      "n": 410,
+      "responders": 9,
+      "presentation": 0.741
+    },
+    "HLA-A*01:01": {
+      "n": 146,
+      "responders": 4,
+      "presentation": 0.722
+    },
+    "HLA-B*35:01": {
+      "n": 134,
+      "responders": 4,
+      "presentation": 0.806
+    },
+    "HLA-B*15:01": {
+      "n": 133,
+      "responders": 1,
+      "presentation": 0.356,
+      "note": "1 responder -- noise"
+    },
+    "HLA-B*07:02": {
+      "n": 125,
+      "responders": 1,
+      "presentation": 0.581,
+      "note": "1 responder -- noise"
+    }
+  },
+  "interpretation": [
+    "DAI is near-chance overall (AUC 0.592) and performs better on ANCHOR mutations (0.660) than TCR-facing ones (0.577). Presentation shows the opposite pattern (0.719 anchor vs 0.801 TCR-facing). This is the anchor-detector hypothesis confirmed by measurement rather than argument.",
+    "Per-allele and per-length strata with fewer than ~5 responders are noise; the 11-mer AUC of 0.233 rests on a single positive.",
+    "Performance is allele-dependent. It is best on HLA-A*02:01, which is also the best-represented allele in the training data of every class I predictor."
+  ]
+}
