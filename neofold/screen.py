@@ -19,6 +19,12 @@ from neofold.variants import Candidate
 STRONG_BINDER_NM = 50.0
 WEAK_BINDER_NM = 500.0
 
+# Percentile-rank bands, the NetMHCpan convention and now the field default.
+# Ranks are preferred to raw nM because allele-specific affinity distributions
+# differ: 500 nM is a very different thing on HLA-A*02:01 than on HLA-C*08:02.
+STRONG_RANK = 0.5
+WEAK_RANK = 2.0
+
 
 @dataclass
 class ScreenResult:
@@ -31,6 +37,8 @@ class ScreenResult:
     presentation_score: float
     wt_presentation_score: float
     processing_score: float
+    affinity_percentile: float = float("nan")
+    wt_affinity_percentile: float = float("nan")
 
     @property
     def dai(self) -> float:
@@ -57,11 +65,32 @@ class ScreenResult:
 
     @property
     def binder_class(self) -> str:
+        """Band by PERCENTILE RANK where available, which is the convention the
+        field has moved to: raw nM is not comparable across alleles, because
+        different alleles have systematically different affinity distributions.
+        Falls back to nM bands when a rank is unavailable."""
+        pct = self.affinity_percentile
+        if pct == pct:                       # not NaN
+            if pct < STRONG_RANK:
+                return "strong"
+            if pct < WEAK_RANK:
+                return "weak"
+            return "non-binder"
         if self.affinity_nm <= STRONG_BINDER_NM:
             return "strong"
         if self.affinity_nm <= WEAK_BINDER_NM:
             return "weak"
         return "non-binder"
+
+    @property
+    def wt_binder_class(self) -> str:
+        """The wild-type's own band. Reporting this stops us claiming the
+        germline peptide is 'invisible' when it is in fact a weak binder."""
+        pct = self.wt_affinity_percentile
+        if pct == pct:
+            return "strong" if pct < STRONG_RANK else "weak" if pct < WEAK_RANK else "non-binder"
+        return ("strong" if self.wt_affinity_nm <= STRONG_BINDER_NM
+                else "weak" if self.wt_affinity_nm <= WEAK_BINDER_NM else "non-binder")
 
     def as_dict(self) -> dict:
         return {
@@ -77,7 +106,12 @@ class ScreenResult:
             "presentation_score": round(self.presentation_score, 4),
             "wt_presentation_score": round(self.wt_presentation_score, 4),
             "processing_score": round(self.processing_score, 4),
+            "affinity_percentile": (None if self.affinity_percentile != self.affinity_percentile
+                                    else round(self.affinity_percentile, 3)),
+            "wt_affinity_percentile": (None if self.wt_affinity_percentile != self.wt_affinity_percentile
+                                       else round(self.wt_affinity_percentile, 3)),
             "binder_class": self.binder_class,
+            "wt_binder_class": self.wt_binder_class,
         }
 
 
@@ -142,6 +176,9 @@ class PeptideScreen:
                 presentation_score=m["presentation_score"],
                 wt_presentation_score=w["presentation_score"] if w else float("nan"),
                 processing_score=m["processing_score"],
+                affinity_percentile=m.get("affinity_percentile", float("nan")),
+                wt_affinity_percentile=(w.get("affinity_percentile", float("nan"))
+                                        if w else float("nan")),
             ))
         results.sort(key=lambda r: r.presentation_score, reverse=True)
         return results
@@ -152,10 +189,12 @@ class PeptideScreen:
         if not usable:
             return {}
         df = self.predictor.predict(
-            peptides=usable, alleles={"sample": [allele]}, verbose=0)
+            peptides=usable, alleles={"sample": [allele]}, verbose=0,
+            include_affinity_percentile=True)
         return {
             row.peptide: {
                 "affinity": float(row.affinity),
+                "affinity_percentile": float(getattr(row, "affinity_percentile", float("nan"))),
                 "presentation_score": float(row.presentation_score),
                 "processing_score": float(row.processing_score),
             }

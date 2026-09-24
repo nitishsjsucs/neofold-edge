@@ -16,7 +16,7 @@
 | Do I need the community GB10 fork? | **No.** Stock `pip install boltz==2.2.1` + 4 fixes below. |
 | Do I need sudo? | **No** — I found a no-sudo workaround for the one blocker that needs root. |
 | Can Boltz confidence rank candidates? | **No.** See §6 — this is the single most important finding. |
-| **How accurate is it, really?** | **0.32–0.51 Å** peptide backbone RMSD vs two crystal structures, two alleles. See §6A. |
+| **How accurate is it, really?** | **0.32 Å** (A\*02:01 vs 3GSO) and **0.51 Å** (C\*08:02 vs 6ULN) peptide backbone RMSD. See §6A. |
 | Does the screen work? | **Yes.** MHCflurry ranks both published KRAS G12D epitopes **#1 and #2 of 38**. See §6B. |
 
 ---
@@ -144,6 +144,7 @@ Idle baseline ~3.5 W. That power delta is a clean, honest "real work is happenin
 
 - Variant: GRCh38 `chr12:25,245,350 C>T` (minus strand; genomic C>T, not G>A), MANE `NM_004985.5`
 - Peptide: **`GADGVGKSA`** (published epitope: Tran *NEJM* 2016; Sim *PNAS* 2020)
+- Reference protein: UniProt **P01116 canonical = KRAS4A (189 aa)**, not 4B. The isoforms are identical over residues 1–150, so peptides at codon 12 are unaffected — but the label matters if anyone checks.
 - HLA-C\*08:02 ectodomain: IMGT/HLA `HLA:HLA00446`, mature residues 1–275
 - B2M: UniProt `P61769` mature 99-mer (use 99, not the 100 in crystals — that Met is an artifact)
 
@@ -184,7 +185,7 @@ ipTM is a self-reported score, and §6 shows it is untrustworthy here. So I meas
 | Configuration | MHC CA RMSD | **Peptide backbone RMSD** | Peptide CA | Wall time |
 |---|---|---|---|---|
 | Single-sequence (`msa: empty`) | 0.970 Å | **0.560 Å** | 0.464 Å | 58 s |
-| **With MSA (cached, offline)** | **0.748 Å** | **0.486 Å** | **0.357 Å** | 58 s* |
+| **With MSA (cached, offline)** | **0.748 Å** | **0.51 Å** | **0.41 Å** | 58 s* |
 | With MSA (fetching from server) | — | — | — | 132 s |
 
 \* once the MSA is cached; the 132 s run includes the one-time online fetch.
@@ -196,9 +197,9 @@ ipTM is a self-reported score, and §6 shows it is untrustworthy here. So I meas
 | KRAS G12D `GADGVGKSA` / C\*08:02 | 6ULN | **0.509 Å** |
 | CMV `NLVPMVATV` / A\*02:01 | 3GSO | **0.321 Å** |
 
-**Sub-Ångström peptide placement.** For scale, that is within the coordinate uncertainty of many crystal structures. Per-residue deviation is highest at the peptide termini (P1 0.55 Å, P9 0.52 Å) and lowest in the middle — the expected pattern, since the termini are anchored but the crystal has a TCR bound that we do not model.
+**Sub-Ångström peptide placement.** For scale, that is within the coordinate uncertainty of many crystal structures. Per-residue deviation is **lowest at p2–p3** (0.24 Å, 0.30 Å) and highest at the termini (p1 0.51 Å, p9 0.67 Å). We previously stated this backwards. The pattern is consistent with p2 being a primary anchor buried in the B pocket, while the termini are the most mobile.
 
-**Say this honestly:** 6ULN was published in 2020 and may well be in Boltz-2's training data. This is a **retrospective reconstruction**, not a blind prediction. The claim to make is *"our pipeline reconstructs a known complex end-to-end on-device to 0.49 Å in under a minute"* — which is true, verifiable, and still impressive.
+**Say this honestly:** 6ULN was published in 2020 and may well be in Boltz-2's training data. This is a **retrospective reconstruction**, not a blind prediction. The claim to make is *"our pipeline reconstructs a known complex end-to-end on-device to 0.51 Å in under a minute"* — which is true, verifiable, and still impressive.
 
 ### The MSA insight that makes accuracy free
 
@@ -231,10 +232,12 @@ MHCflurry 2.2.0 (PyTorch backend, installs clean on ARM64), `HLA-C*08:02`, 38 pe
 
 | | Mutant (G12D) | Wild-type | Fold change |
 |---|---|---|---|
-| `GADGVGKSA` vs `GAGGVGKSA` | 74.1 nM | 3,656 nM | **49× stronger** |
-| `GADGVGKSAL` vs `AGGVGKSAL` | 38.9 nM | 1,355 nM | **35× stronger** |
+| `GADGVGKSA` vs `GAGGVGKSA` | 74.1 nM | 3,656 nM | **49.4×** (DAI 23.5 damped) |
+| `GADGVGKSAL` vs `GAGGVGKSAL` | 38.9 nM | 877 nM | **22.6×** (DAI 17.9 damped) |
 
-This is the demo's real story: **a single G>A substitution creates a peptide the immune system can see, and the normal version of that protein is invisible.** That is the whole premise of a personalized cancer vaccine, shown with measured numbers on-device, against epitopes independently published in *NEJM* and *PNAS*.
+This is the demo's real story: **a single base substitution creates a peptide presented far better than its germline counterpart**, shown with measured numbers on-device against epitopes published in *NEJM* and *PNAS*.
+
+> ⚠️ **Do not say "the normal protein is invisible."** By percentile rank the germline 10-mer `GAGGVGKSAL` is **1.055 %rank — a weak binder** under the NetMHCpan convention, so it is predicted to be presented, just far less well. Only the germline 9-mer (2.254 %rank) falls outside the binder bands. Raw nM ratios overstate the contrast; ranks are the honest unit because affinity distributions differ by allele.
 
 Always show the wild-type control. It is the difference between "the model gave us a number" and "the mutation is why this candidate exists."
 
@@ -339,7 +342,7 @@ Critically, **ensemble spread would almost certainly NOT have caught our wrong-a
 
 The naive version is false: Boltz will produce a confident, plausible pose for the wild-type peptide too, so "mutant looks good / wild-type looks bad" would not survive scrutiny.
 
-**This case has a real discriminator, and I verified it.** HLA-C\*08:02 prefers **Asp at peptide position 3** (Rasmussen, *J Immunol* 2014). G12D is precisely what puts Asp at p3 in `GADGVGKSA`, and crystal structure 6ULN shows that p3 Asp salt-bridging **Arg156** in the D pocket. Measured with `neofold/contacts.py`:
+**This case has a real discriminator, and I verified it.** HLA-C\*08:02 prefers **Asp at peptide position 3** (Rasmussen, *J Immunol* 2014). G12D is precisely what puts Asp at p3 in `GADGVGKSA`, and crystal structure 6ULN shows that p3 Asp making charge contacts to **Arg156** (2.73 Å) and also **Arg97** (3.71 Å). Measured with `neofold/contacts.py`:
 
 | Structure | p3 residue | Distance to Arg156 | Salt bridge |
 |---|---|---|---|
@@ -353,6 +356,17 @@ This is not our inference. Sim *et al.* (*PNAS* 2020) report that "only mutant G
 
 **Caption to use:** *"The G12D substitution places an aspartate at peptide position 3, where HLA-C\*08:02 has a charged pocket. In the crystal structure that aspartate forms a 2.7 Å salt bridge to Arg156; our local prediction reproduces it at 2.5 Å. The normal protein has glycine here — no side chain, no contact possible."*
 
+> ⚠️ **The structure adds geometry, not the verdict.** Whether this contact *can* form is a deterministic
+> function of the peptide sequence — position 3 is aspartate or it is not — so the structure prediction
+> contributes **no information** on that point. What it contributes is the *geometry*: 2.58 Å against the
+> crystal's 2.73 Å. Present it as "our local model reproduces the known contact geometry", never as
+> "our model discovered why this peptide binds."
+>
+> ⚠️ **Molecular dynamics cannot corroborate this contact.** Generalised-Born implicit solvent
+> over-stabilises salt bridges by 3–4 kcal/mol, with the error concentrated on hydrogens bonded to
+> charged nitrogens — precisely Arg156's guanidinium — and OpenMM's GB defaults to zero ionic strength.
+> The crystal and the prediction already make the case; adding MD to it would be circular.
+>
 > ⚠️ **The caveat that must accompany the panel.** Do not let anyone read binding strength off the picture. For a published wild-type/mutant pair on HLA-A\*03:01 (PDB **7L1B** / **7L1C**, Chandran *et al.*, *Nat Med* 2022), a **70× difference in complex half-life** (0.078 h vs 5.497 h) corresponds to just **0.73 Å** of peptide backbone RMSD. Almost none of the binding signal is visible as geometry. Say so — it is why the panel measures one named contact and takes its ranking from the sequence-based screen.
 >
 > Two further honest limits: modelling protocols such as PANDORA and APE-Gen place anchors in pockets **by construction**, so burial depth in a model is an artifact, not evidence. And non-binders do not crystallise, so the PDB contains **no control group** for any "non-binder geometry" claim.
@@ -435,7 +449,7 @@ find ~/neofold -name "*.json" -size 0 -delete
 
 The pipeline so far answers *"can this peptide be presented?"* It does not answer *"can a T-cell see it?"* Those differ, and the gap is where real pipelines lose nearly everything — TESLA found **37 of 608** predicted neoantigens immunogenic.
 
-**Measured on the Nano.** Full 5-chain, **812-residue** complex: HLA-C\*08:02 + β2m + KRAS G12D peptide + the patient-derived TCR α/β from Tran *NEJM* 2016.
+**Measured on the Nano.** Full 5-chain, **812-residue** complex: HLA-C\*08:02 + β2m + KRAS G12D peptide + TCR9d from patient 3995 (Sim *et al.*, *PNAS* 2020 — **not** Tran *NEJM* 2016, which reported the TIL therapy but not this receptor).
 
 | | Result |
 |---|---|
@@ -490,7 +504,7 @@ Adding 429 residues of TCR did not degrade the pMHC core — the peptide is *mor
 
 **Done:**
 - Phase 0 gate — Boltz-2 installed, offline prediction verified, 4-case benchmark, GPU telemetry
-- Demo case chosen and validated to **0.49 Å** against crystal structure 6ULN
+- Demo case chosen and validated to **0.51 Å** against crystal structure 6ULN
 - MSAs generated, cached, and shown to improve accuracy at zero marginal cost
 - MHCflurry installed, models fetched, and **validated against two published epitopes with a wild-type control**
 

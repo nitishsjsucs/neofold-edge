@@ -61,6 +61,7 @@ class MDResult:
     def as_dict(self) -> dict:
         return {
             "name": self.name,
+            "comparable_across_runs": False,
             "atoms": self.atoms,
             "ns_per_day": round(self.ns_per_day, 1),
             "production_ns": round(self.production_ns, 4),
@@ -78,6 +79,15 @@ class MDResult:
                 "immunogenicity -- this samples ~10^-13 of the measured complex "
                 "lifetime."
             ),
+            "caveats": [
+                "Runs are TIME-budgeted, so replicates cover different simulated "
+                "durations (measured 0.64-1.00 ns). 'Final RMSD' is therefore not "
+                "directly comparable between runs; contact persistence, being a "
+                "mean over the trajectory, is more robust to this.",
+                "Generalised-Born implicit solvent over-stabilises salt bridges by "
+                "3-4 kcal/mol and defaults to zero ionic strength, so this run must "
+                "NOT be used to corroborate any specific salt-bridge claim.",
+            ],
         }
 
 

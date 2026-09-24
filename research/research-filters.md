@@ -20,7 +20,15 @@ proteome already vendored at `data/reference/human_sp.fasta.gz` and the repo's o
 | KRAS G12D on HLA-C\*08:02, `GADGVGKSA` vs WT | 74.1 nM vs 3656.5 nM → **49.4×** |
 | KRAS G12D on HLA-A\*11:01, `VVVGADGVGK` vs WT | 47.0 nM vs 40.8 nM → **0.87×** |
 | KRAS G12D windows on A\*11:01 passing the current `MIN_FOLD_CHANGE = 2.0` | **0 of 14** |
+| Demo-panel binders whose mutation is at an **anchor**, passing `DAI ≥ 2` | **4 / 4 = 100 %** |
+| Demo-panel binders whose mutation is **TCR-facing**, passing `DAI ≥ 2` | **7 / 36 = 19 %** |
+| Demo-panel binders discarded by the `DAI ≥ 2` gate | **29 / 40** (incl. BRAF V600E, EGFR L858R, KRAS G12V/D/A) |
+| Self-similarity yield: applied first vs after the binding screen | **13 vs 0** — same 11 survivors |
+| GTEx **v11** median-TPM file (current release, 2026-01-15) | **10,129,906 B**, 74,628 genes × 68 cols |
+| NY-ESO-1 (`CTAG1B`) max median TPM across GTEx v11 | **0.065** — *fails* a TPM ≥ 1 inclusion filter |
+| `SSX2` / `MAGEA1` / `TTN` max median TPM | 0.141 / 10.93 / 351.3 |
 | TLStab weights shipped in-repo | **10 × 8,904,535 B = 89.0 MB** |
+| TLStab stability fine-tuning data | 6,298 points, **10 HLA-A/B alleles, 9-mers only, no HLA-C** |
 
 ---
 
@@ -44,10 +52,13 @@ proteome already vendored at `data/reference/human_sp.fasta.gz` and the repo's o
    score**, and add the published fix — **anchor-position annotation** (Xia 2023, *Sci Immunol*, which
    measured 7–41 % of candidates misclassified this way). §1.2, §1.5a, §5
 
-4. **Expression: use GTEx v10 median TPM, 8.4 MB, vendorable, and gate at TPM ≥ 1 — but as a *tier*, not a
-   drop.** A population median is not your patient's expression and cannot be made into one. It can only
-   support the negative claim "this gene is not expressed in *any* normal tissue", which is a weak but
-   honest filter. §2
+4. **Expression: do NOT build the filter you were planning. Build its inverse.** A GTEx `TPM ≥ 1`
+   inclusion gate **deletes NY-ESO-1** (CTAG1B, measured max median **0.065 TPM**) and SSX2. Silence in
+   normal tissue is a cancer-testis *signature*, not a defect — so a normal-tissue atlas used as an
+   inclusion gate selects **against** tumour specificity. Used in the safety direction it works
+   beautifully: TTN at 351 TPM flags the exact off-target that killed patients in the MAGE-A3 TCR trial.
+   Vendor **GTEx v11** (10,129,906 B — v10 and v8 are superseded), drop its 14 LCM columns, and never
+   gate on it. §2
 
 5. **TLStab is verified and worth adding — with one licence caveat that may be disqualifying.** CPU
    PyTorch, weights in-repo, a 3-layer MLP that will run anywhere. But the repository has **no LICENSE
@@ -286,6 +297,48 @@ the anchor case. Since you already compute the mutation's offset within each win
 **On BLOSUM-weighted similarity:** it is the norm in the *scoring* literature (§1.6a), not in the
 *filtering* literature. Use it, if at all, as a reported score. It has no defensible threshold.
 
+#### Implementation note — index the proteome as packed integers, not seed lists
+
+Measured against the in-progress `neofold/selfsim.py` on this machine:
+
+| Approach | Memory | Build | Exact lookup | Full 1-mismatch scan |
+|---|---|---|---|---|
+| `blob.find()` + half-seed dict (current) | **547 MB RSS** for k=9 alone | 1.7 s | **4.1 ms** | 1.1 ms |
+| **Packed uint64 + `np.searchsorted`** | **83 MB per length** | 2.8 s | **5–44 µs** | **0.6–0.7 ms** |
+
+Both return identical answers (`VVGADGVGK` → not self, 3 one-mismatch neighbours:
+`VVGAGGVGK`, `VVGARGVGK`, `VVGASGVGK`).
+
+The trick: 20 amino acids fit in 5 bits, so a k-mer up to k=12 packs into a `uint64`. Encode the whole
+proteome once with a vectorised shift-or, `np.unique` to sort-and-dedupe, then every query is a binary
+search. The `*` protein separators encode as an invalid code and are masked out, which preserves the
+"no peptide spans two proteins" guarantee.
+
+```python
+AA = "ACDEFGHIKLMNPQRSTVWY"
+CODE = np.full(256, 255, dtype=np.uint8)
+for i, a in enumerate(AA): CODE[ord(a)] = i
+
+arr = CODE[np.frombuffer(blob.encode(), dtype=np.uint8)]
+def pack(k):
+    n = len(arr) - k + 1
+    out = np.zeros(n, dtype=np.uint64); bad = np.zeros(n, dtype=bool)
+    for j in range(k):
+        s = arr[j:j+n]
+        out = (out << np.uint64(5)) | s.astype(np.uint64)
+        bad |= (s == 255)          # '*' separator -> drop this window
+    return np.unique(out[~bad])    # sorted + deduped; searchsorted from here
+```
+
+Distinct k-mer counts and index sizes: k=8 → 10,304,716 (82.4 MB); k=9 → 10,409,122 (83.3 MB);
+k=10 → 10,470,058 (83.8 MB); k=11 → 10,513,156 (84.1 MB). Build lazily per length; you rarely need all four.
+
+The 4.1 ms exact lookup in the current implementation is `str.find` scanning 11.4 MB linearly. At 1,890
+candidates that is ~8 s per run for the gate alone — tolerable now, but it scales with the VCF, and the
+packed index removes it for free. The 547 MB figure is the bigger concern: the half-length seed is a
+**4-mer**, which partitions 11.4 M positions into only 160 K buckets, so the index is really 11.4 M Python
+ints in lists. That will not coexist comfortably with MHCflurry and Boltz-2 on the same box.
+
 ### 1.5a Anchor position — the correction that rescues the candidates A–E discard
 
 The position-weighting argument above is not a refinement I invented; it is an established published
@@ -307,6 +360,41 @@ That sentence is a precise description of the KRAS G12D / HLA-A\*11:01 result me
 mode is known, published, quantified at 7–41 %, and already fixed in the reference implementation. You
 should implement the fix rather than rediscover the failure.
 
+**Measured on your own demo panel.** `Candidate.mut_offset` already gives the mutation's position within
+each window, so this cross-tabulation cost nothing. Of the 1,890 candidates on HLA-A\*11:01, 40 are
+predicted binders (presentation ≥ 0.10 and ≤ 500 nM). Classifying each by whether the mutation sits at an
+anchor (P2 or PΩ) or faces the TCR:
+
+| Binders, by mutation position | n | pass `DAI ≥ 2` | **discarded by the gate** |
+|---|---|---|---|
+| **anchor** (P2 / PΩ) | 4 | **4 (100 %)** | 0 |
+| **TCR-facing** | 36 | 7 (19 %) | **29** |
+
+**The DAI ≥ 2 gate is, empirically, an "anchor mutations only" filter.** It passes every single
+anchor-mutation binder and rejects four out of five TCR-facing ones. That is not a side effect — it is
+exactly what Duan designed DAI to detect, working as specified, being used for the wrong job.
+
+The 29 discarded binders are a roll-call of the canonical actionable drivers:
+
+```
+KRAS G12V    VVVGAVGVGK   P6    35.8 nM  pres=0.959  DAI=1.14   DISCARDED
+BRAF L733W   SASEPSWNR    P7    62.5 nM  pres=0.943  DAI=0.77   DISCARDED
+KRAS G12V    VVGAVGVGK    P5    42.8 nM  pres=0.912  DAI=1.29   DISCARDED
+KRAS G12D    VVVGADGVGK   P6    47.0 nM  pres=0.910  DAI=0.87   DISCARDED
+EGFR L122Y   AVYSNYDANK   P3    31.3 nM  pres=0.867  DAI=1.12   DISCARDED
+KRAS G12A    VVVGAAGVGK   P6    37.5 nM  pres=0.865  DAI=1.09   DISCARDED
+BRAF V600E   KIGDFGLATEK  P10   52.9 nM  pres=0.857  DAI=1.05   DISCARDED
+EGFR L858R   KITDFGRAK    P7    48.1 nM  pres=0.850  DAI=0.58   DISCARDED
+```
+
+**Losing BRAF V600E and EGFR L858R** — at 53 nM / 0.857 and 48 nM / 0.850 — is not a defensible outcome
+for a neoantigen prioritisation tool.
+
+⚠️ **Do not quote the 72 % (29/40) as a population rate.** `tumor_variants_large.vcf` is a curated
+hotspot-driver panel and is heavily enriched for exactly this class. The honest population figure is
+Xia 2023's **7–41 % across 923 tumour samples**. Report the 72 % as what it is: the effect on *this*
+demo panel, where it happens to be severe because hotspot drivers are disproportionately TCR-facing.
+
 **Concretely:** anchor positions are **allele-specific** — P2 and PΩ is a good default for most class I
 alleles but is wrong for several. The defensible cheap version, given you already know the mutation's
 offset within each window:
@@ -322,13 +410,168 @@ else:
     anchor_status = "TCR-facing"
 ```
 
+**Where to get allele-specific anchor data, offline.** Two options, both redistributable:
+- `https://github.com/griffithlab/anchor_huiming_etal_2023` — **MIT licensed**, with a `Datasets/` folder
+  holding the normalized anchor scores from the paper (also in its supplementary materials). Note the
+  README's caveat: per-allele/per-length weight *tables* are produced by running their workflow; the
+  repo ships normalized scores plus the seed dataset rather than a finished lookup table.
+- The `pvactools` pip package bundles the per-allele/per-length anchor weights it uses for pVACview's
+  anchor heatmap. Extracting that table is the fastest path to a vendored lookup.
+
+**Start with the P2/PΩ default.** It is right for HLA-A\*11:01 and most class I alleles, it needs no
+extra data, and it already produces the result in the table above. Upgrade to allele-specific weights
+only if you have time; the finding does not depend on it.
+
 Ship `anchor_status` in `as_dict()` and use it to explain the tier in the UI. A candidate with
 DAI ≈ 1 **and** `anchor_status == "TCR-facing"` is not a weak candidate — it is a different, equally valid
 mechanism, and the interface should say so rather than burying it in `"not tumour-specific"`.
 
-### 1.6a Published similarity metrics for TCR cross-reactivity risk
+### 1.6a Published similarity metrics for TCR cross-reactivity risk — and how well they hold up
 
-*(Formulas, parameters and validation status — filled in below.)*
+**Short answer: they exist, they are cheap to implement, and the independent evidence for them is weak.
+Compute them as annotations. Do not gate on them, and do not present them as safety controls.**
+
+#### The formulas, precisely
+
+**Łuksza 2017 "foreignness" / recognition probability R** (*Nature* 551:517–520, doi `10.1038/nature24473`):
+
+```
+S    = SUM over IEDB epitopes e of  exp[ -k * (a - |s,e|) ]
+R(s) = S / (1 + S)                      # the "1" is the unbound state
+
+a = 26.0          k = 4.86936           # code values; the paper rounds k to 4.87
+|s,e| = BLOSUM62 local alignment score, gap-open 11, gap-extend 1
+```
+
+Three things a literal reading of the paper will not reproduce:
+- **The alignment is effectively gapless.** BLAST HSPs containing `-` are discarded *before* rescoring; the
+  surviving ungapped segments are then re-scored with a *gapped* aligner. Paper says "gapless", code says
+  11/1 — both are true, in that order.
+- **Quality is `A × R × w`, not `A × R`.** The reference code multiplies by a binary hydrophobicity weight
+  `w` that zeroes out neoantigens whose wild-type residue at an anchor position (2 or 9) is not hydrophobic.
+- **`k = 4.86936` makes R a near-step function.** One BLOSUM unit changes R by ~e^4.87 ≈ **130×**.
+  R is ~0 below score 25 and ~1 above 27. Score fidelity is load-bearing; there is no useful gradient.
+
+**Richman 2019 "dissimilarity" D** (*Cell Systems* 9:375–382.e4, doi `10.1016/j.cels.2019.08.009`) reuses
+the same partition function and **inverts** it:
+
+```
+S    = SUM over self-proteome BLAST hits h of  exp[ -k * (a - |s,h|) ]
+D(s) = 1 - S / (1 + S)
+
+k = 4.86936       a = 32     <-- NOT 26; re-derived from mean self-alignment scores
+reference = Ensembl GRCh38 release 90   <-- NOT UniProt
+threshold "high dissimilarity" = D > 0.75   (a "natural break", explicitly not optimised)
+no BLAST hits at all -> D = 1
+```
+
+**Bjerregaard 2017 / NeoFox `Selfsimilarity_conserved_binder`** (*Front Immunol* 8:1566,
+doi `10.3389/fimmu.2017.01566`) is a different quantity entirely — it compares the mutant peptide to
+**its own wild-type**, not to the proteome:
+
+```
+K1(x,y)    = BLOSUM62-2(x,y) ^ beta            beta = 0.11387
+K2_k(u,v)  = PRODUCT over positions of K1
+K3(f,g)    = SUM over all k, all length-k substrings of f and g, of K2_k
+K_hat3     = K3(f,g) / sqrt( K3(f,f) * K3(g,g) )        in (0, 1]
+```
+
+⚠ **`BLOSUM62-2` is the odds-ratio matrix `Q(x,y)/(p(x)p(y))`, not standard BLOSUM62.** All entries are
+strictly positive, which is what makes the fractional exponent defined. Loading Biopython's integer
+BLOSUM62 and raising it to a fractional power produces garbage — this is the most common reimplementation
+bug. `beta` was fitted by cross-validation on **HLA class II binding-affinity regression**, and traces to
+a **2012 arXiv preprint that was never peer reviewed** (arXiv:1205.6031).
+
+#### The validation record — read this before you build any of it
+
+| Finding | Source |
+|---|---|
+| **Foreignness score alone: AUC 0.516 — "performs similarly to random predictions"** across three evaluation sets, 3,033 neo-epitope–HLA pairs | Wan et al. 2024, *NAR Cancer* 6:zcae002, doi `10.1093/narcan/zcae002` |
+| **TESLA never tested dissimilarity-to-self-proteome at all.** Its foreignness result rests on **12 immunogenic vs 17 non-immunogenic** pMHC, with foreignness *pooled* with agretopicity into one "recognition" variable rather than shown independently significant | Wells et al. 2020, *Cell* 183:818–834.e13, doi `10.1016/j.cell.2020.09.015` |
+| TESLA, verbatim: *"submissions that explicitly prioritized peptide foreignness…, agretopicity…, or both…, **without accounting for presentation, either had no difference in performance or performed worse**"* | ibid. |
+| Bjerregaard's own conclusion: *"self-similarity in general is a **relatively poor predictor** for peptide immunogenicity"* — AUC 0.65 on a post-hoc subgroup of ~25 positives, where NetMHCpan EL %Rank scored **0.72** on the same data | Bjerregaard 2017 |
+| **Failed to replicate** on 467 positives (9× the original) by a superset of the original authors: `SelfSim p = 0.24`, not significant overall or within either subgroup | Borch et al. 2024, *Front Immunol* 15:1360281, doi `10.3389/fimmu.2024.1360281` |
+| Dissimilarity is **not monotonic**: thymic *positive* selection is self-driven, so maximally dissimilar peptides have **no available TCRs**. The true relationship is an inverted U | Koncz et al. 2021, *PNAS* 118:e2100542118, doi `10.1073/pnas.2100542118` |
+| 12 common self-similarity measures show *"remarkably low consistency"* with each other; BLOSUM-based scores partly measure **HLA restriction**, because anchor residues dominate the sum | Koncz et al. 2024, *PNAS* 121:e2309674121, doi `10.1073/pnas.2309674121` |
+| Neither Łuksza model has been externally validated by an unaffiliated group; the 2022 parameters were fitted on the same lab's earlier cohort | — |
+
+**Two practical traps if you build these anyway:**
+
+- **The reference set is not stable.** Łuksza's 2017 IEDB set has 2,558 epitopes (28 of them *Homo sapiens*,
+  so "foreignness" is not strictly non-self). The 2022 set shipped with `NeoantigenEditing` has 4,103, of
+  which **973 (23.7 %) are SARS-CoV-2** — an artifact of when it was downloaded. R shifts by **four to five
+  orders of magnitude** between the two. **Pin and version your reference set** or the numbers are
+  meaningless across runs.
+- **antigen.garnish's licence is restrictive**, despite the paper calling it open source — it forbids
+  distribution for commercial purposes and requires distribution through the original authors.
+  **Reimplement from the formulas above rather than vendoring it.** The formulas are short and published.
+
+#### Is there any evidence that self-similarity filtering prevents autoimmunity in humans?
+
+**No. None. This is the honest answer and it should be in the write-up.**
+
+- **No trial has ever run the counterfactual.** There is no unfiltered comparator arm anywhere in the
+  literature, and no trial was designed or powered to test a self-similarity safety hypothesis.
+- **None of the landmark vaccine trials used a sequence self-similarity filter** — not Ott 2017 (NeoVax),
+  not Hu 2021, not Rojas 2023 (autogene cevumeran). No autoimmunity attributable to self-cross-reactive
+  neoepitopes was reported in any of them.
+- **The one large randomised dataset bounds the problem.** In KEYNOTE-942 (Weber et al. 2024, *Lancet*
+  403:632–644, doi `10.1016/S0140-6736(23)02268-7`), immune-mediated adverse events occurred in
+  **36 % (37/107)** of the vaccine + pembrolizumab arm versus **36 % (18/50)** on pembrolizumab alone.
+  Adding ~34 personalised neoantigens produced no detectable increase.
+- **What the leading clinical platform actually does.** The Genentech IMCODE001 protocol (NCT03815058)
+  calls the risk "**Theoretically**", and the mitigation it deploys is *"a database that provides
+  comprehensive information about expression levels of respective wild-type genes in healthy tissues…
+  Mutations occurring in proteins with a possible higher auto-immunity risk in critical organs are
+  filtered out."* **That is an expression filter over wild-type genes in critical organs — not a
+  sequence-similarity filter.** It is precisely the design recommended in §2.2.
+
+#### The MAGE-A3 / titin case — why sequence similarity could not have caught it
+
+The canonical cross-reactivity disaster: an affinity-enhanced HLA-A\*01 MAGE-A3 TCR killed the first two
+patients by cardiogenic shock (Linette et al. 2013, *Blood* 122:863–871, doi `10.1182/blood-2013-03-490565`),
+via titin (Cameron et al. 2013, *Sci Transl Med* 5:197ra103, doi `10.1126/scitranslmed.3006034`).
+
+```
+MAGE-A3 : E V D P I G H L Y
+Titin   : E S D P I V A Q Y      5/9 identity, BLOSUM62 ungapped score = 20
+```
+
+Scored against all ~11.25 M human 9-mers, **titin ranks ~1,003rd** — a thousand human peptides score
+*better*. And the decisive number: for random composition-matched 9-mers, **every one** has a best
+self-match scoring **≥ 29 (median 34)**. The MAGE-A3/titin pair scored **20** — *less* similar than an
+arbitrary peptide is to its own nearest human neighbour. **A threshold loose enough to flag titin flags
+100 % of all peptides.**
+
+This converges exactly with the measurement in §1.5: across 20,000 simulated single-substitution
+neoepitopes, the BLOSUM62 score against their own wild-type has **minimum 28, median 40**. Every SNV
+neoepitope is more self-similar to a real self peptide than MAGE-A3 was to titin. **Sensitivity and
+false-negative cost are the same dial, and it has no usable setting.**
+
+*(Two honest qualifications. First, CrossDome (Fonseca et al. 2023, *Front Immunol* 14:1142573,
+doi `10.3389/fimmu.2023.1142573`) does rank titin 27th of ~36,000 — improving to 6th with TCR-contact
+weighting — by restricting to the HLA-matched **measured immunopeptidome** rather than the raw proteome.
+So the failure is specific to unweighted proteome-wide BLOSUM scanning, which is exactly what neoantigen
+pipelines do. Second, the other fatal case cuts the other way: the MAGE-A12 cross-reactivity that caused
+two neurological deaths (Morgan et al. 2013, *J Immunother* 36:133–151, doi `10.1097/CJI.0b013e3182829903`)
+sits at **rank 3** in a proteome scan and was trivially findable — that was an **expression-atlas failure**,
+not a sequence-similarity failure.)*
+
+#### What to actually build
+
+1. **Keep the exact-match gate from §1.5.** It is not a similarity metric; it is a category check, and it
+   needs no validation literature because it is definitional.
+2. **Compute R and D as annotations if you want them**, reimplemented from the formulas above (not
+   vendored), with the reference set pinned and versioned in `PROVENANCE.txt`. Justify them on
+   **immunogenicity-enrichment** grounds — where the correlative human data actually are — and never as a
+   safety control.
+3. **If you want a real safety filter, build the two things with actual support:** wild-type gene
+   expression in critical normal tissues (§2.2 — what the clinical platforms actually deploy), and, if you
+   ever extend it, similarity to the **measured** benign immunopeptidome (HLA Ligand Atlas, Marcu et al.
+   2021, *JITC* 9:e002071, doi `10.1136/jitc-2020-002071`) with TCR-contact-position weighting.
+4. **Do not implement the Bjerregaard/NeoFox kernel.** It failed to replicate at 9× the original sample
+   size, its hyperparameter comes from an unrelated class-II regression, its threshold was a median split
+   on the discovery set, and its numerical range on SNV data is a near-constant ~[0.87, 1.00].
 
 ### 1.7 What Filter 1 does NOT establish
 
@@ -347,6 +590,345 @@ Write these into the code as docstrings and into the UI as caveats:
   only; frameshift, indel, splice and fusion neoepitopes — which are the *most* foreign-to-self class, and
   therefore the class where this filter would matter least — are out of scope entirely.
 - **It uses canonical sequences only.** Quantified: 0.05 % of "novel" calls flip when isoforms are included.
+
+---
+
+## 2. Filter 2 — gene expression
+
+### 2.1 How published pipelines actually do it
+
+The reference implementation is again pVACseq, and it filters on **two** things, not one:
+
+| Flag | Default | What it tests |
+|---|---|---|
+| `--expn-val` | **1.0** | Gene *and* transcript expression cutoff |
+| `--trna-vaf` | **0.25** | Tumour **RNA** variant allele fraction |
+| `--tdna-vaf` | 0.25 | Tumour DNA VAF |
+| `--normal-vaf` | 0.02 | Normal VAF (germline exclusion) |
+
+**Three things about that `1.0` that are not in the docs.**
+
+1. **It is unit-agnostic by construction.** The help string names no unit; the value is compared against
+   whatever the upstream annotator wrote. VAtools' `vcf-expression-annotator` emits kallisto → `tpm`,
+   StringTie → `TPM`, Cufflinks → `FPKM`. The pVACseq FAQ still says "FPKM" — legacy Cufflinks-era
+   wording. A modern kallisto-fed run therefore filters at **1 TPM while its own FAQ says FPKM**.
+   "The pVACtools threshold is TPM ≥ 1" is a thing people say; the tool never says it.
+2. **`NA` passes the filter.** The filter short-circuits on unannotated fields, so a missing expression
+   value is silently *kept*, not dropped. In pipelines that never populate the transcript field, the
+   transcript half of the filter is a permanent no-op and the effective rule is gene-level only.
+   If you copy this design, copy it deliberately rather than by accident.
+3. **The stronger filter is `--trna-vaf`, not `--expn-val`.** Gene-level expression asks "is this gene
+   on?". RNA VAF asks "is the *mutant allele* actually transcribed?" — the question that matters, since a
+   gene can be well expressed while the mutant allele is silenced or lost. **We can do neither.**
+
+**On "TPM ≥ 1" — there is no canonical derivation, and it is not even GTEx's number.**
+
+- **Wagner, Kin & Lynch 2012** (*Theory Biosci* 131:281–285, doi `10.1007/s12064-012-0162-3`) defines the
+  TPM *unit*. It proposes no detection threshold.
+- **GTEx's own pipeline uses TPM ≥ 0.1**, not 1 — and pairs it with a read-count criterion
+  (`tpm_threshold=0.1`, `count_threshold=6`, each in ≥20 % of samples) precisely because TPM alone is
+  unreliable at low abundance. Ten-fold lower than the pipeline convention.
+- **HPA is the closest citable source for "≥ 1"**, and is explicit that it is a chosen convention: a
+  cutoff of **1 nTPM** as the limit of detection. Note that is *nTPM* (TMM-normalised), not raw TPM.
+- The entire published justification in the neoantigen literature traces to a parenthetical illustration
+  in Hundal et al. 2016 — *"is the gene expressed at a reasonably high level (for example, FPKM > 1)"* —
+  an example that hardened into a default.
+
+**Cite HPA if you need a citation, and say plainly that it is convention.** Anyone claiming TPM ≥ 1 is
+derived is overclaiming.
+
+**Cross-tool reality check.** Four tools converge on the number "1" while meaning four different quantities:
+
+| Tool | Cutoff | Units | Level |
+|---|---|---|---|
+| pVACseq | `--expn-val` 1.0 | undefined (annotator-dependent) | gene + transcript |
+| nextNEOpi (standard / relaxed) | 1 / 2 | gene TPM | gene |
+| TSNAD v2 | `> 1` hardcoded | FPKM | gene |
+| antigen.garnish | `min_counts = 1` | estimated read counts | transcript |
+| **Vaxrank / isovar** | `min-alt-rna-reads = 3` | **raw reads at the variant** | **allele-specific** |
+| MuPeXI | none — `tanh(expr+0.1)` weight | — | transcript |
+| NeoPredPipe, NeoFox | none (annotation only) | — | gene |
+| ScanNeo, INTEGRATE-Neo | none — calls variants *from* RNA | implicit | — |
+
+**Vaxrank's design note is the load-bearing critique**, and it applies directly to what you are
+considering: it uses raw read counts rather than a normalised measure *"since these scoring criteria are
+not meant to be compared between patient samples"*, because bulk abundance *"would potentially
+overestimate how much of a mutant protein is being made"* — all the reads at a locus can be wild-type.
+**Bulk TPM cannot see allele-specific expression.** A population median sees it even less.
+
+*(Correction worth noting if you read NeoFox's docs: its expression fallback imputes from **TCGA** medians
+for the tumour entity, not from GTEx. It provides no normal-tissue baseline at all.)*
+
+**What the clinical trials actually did.** None of the landmark personalised-vaccine trials applied a
+numeric TPM gate — they had patient RNA-seq and used it per-variant, qualitatively:
+Ott 2017 (*Nature* 547:217–221, doi `10.1038/nature22991`) used TPM to rank and display, not to gate;
+Keskin 2019 (*Nature* 565:234–239, doi `10.1038/s41586-018-0792-9`) states expression was "confirmed by
+tumour RNA-seq"; Sahin 2017 (*Nature* 547:222–226, doi `10.1038/nature23003`) used RPKM and
+"expressed non-synonymous mutations"; Hu 2021 (*Nat Med* 27:515–525, doi `10.1038/s41591-020-01206-4`)
+has numeric thresholds only for *sample QC*. **Not one of them used a population median for anything.**
+That is the fact most relevant to your situation, and it should be stated in the write-up.
+
+### 2.2 The fallback — and the reframe that makes it defensible
+
+**State this plainly and never soften it: a population median is not your patient's expression.** A GTEx
+median TPM is the middle of a distribution over a few hundred *post-mortem normal* donors. It carries no
+information about whether this patient's tumour transcribes this allele. Invisible to it: intra-tumour
+heterogeneity, allele-specific expression, loss of the wild-type allele, copy-number effects, and the
+transcriptional rewiring that is the defining feature of the tissue you actually care about.
+
+| Source | The question it can answer | The question it cannot |
+|---|---|---|
+| **GTEx median TPM** | "Is this gene expressed in *normal* tissue X?" | Anything about the tumour |
+| **HPA consensus nTPM** | Same, with a different normalisation | Same |
+| **TCGA tumour-type medians** | "Is this gene expressed in this *tumour type*, typically?" | Anything about *this* tumour |
+
+**The reframe — and the measurement that forces it.** I tested a GTEx `max median TPM ≥ 1` inclusion
+filter against the canonical cancer-testis antigens, directly on the v11 file:
+
+```
+CTAG1B (NY-ESO-1)   max median TPM = 0.0648    passes TPM>=1 ?  FALSE
+SSX2                max median TPM = 0.1407    passes TPM>=1 ?  FALSE
+MAGEA1              max median TPM = 10.93     passes           TRUE
+TTN                 max median TPM = 351.3     passes           TRUE
+```
+
+**NY-ESO-1 — arguably the most clinically validated tumour antigen in immunotherapy — fails a GTEx
+TPM ≥ 1 filter.** So does SSX2.
+
+This is not a badly chosen threshold; **the direction of use is wrong**. Silence in normal tissue is the
+*defining property* of a good tumour antigen, not a disqualifier. A normal-tissue expression atlas used as
+an inclusion gate selects **against** tumour specificity. It is the same failure shape as the DAI gate in
+§1.5a — a filter that is correct on its own terms, used for a job it cannot do.
+
+It is also barely selective in that direction: `max ≥ 1` retains **93.5 %** of protein-coding genes
+(17,949 / 19,192). It removes 6.5 %, and that 6.5 % is enriched for exactly the genes you want.
+
+**So invert it. GTEx answers the safety question far better than the expression question**, and that
+direction validates cleanly against real clinical toxicities:
+
+```
+TTN      351.3 TPM  (64.4 in Heart_Left_Ventricle)  -- the MAGE-A3 TCR cardiac deaths
+CEACAM5  243.7 TPM  Colon_Transverse                -- severe colitis
+ERBB2    131.1 TPM  Nerve_Tibial                    -- fatal HER2 CAR-T lung toxicity
+MSLN      86.3 TPM  Lung
+MLANA     10.7 TPM  Skin                            -- vitiligo / uveitis
+MAGEA3     0.00 TPM Heart                           -- target itself was clean
+```
+
+Every gene implicated in a real clinical toxicity lights up. And MAGEA3 correctly reads as silent — the
+MAGE-A3 TCR deaths were **off-target cross-reactivity to TTN**, which GTEx flags loudly. This is what
+population medians are actually good for, and it pairs naturally with the self-similarity filter in §1.
+
+**Build the safety direction. Do not build the inclusion gate.**
+
+### 2.3 Data sources — verified URLs and sizes
+
+All `Content-Length` values verified by HTTP HEAD on 2026-09-24.
+
+| File | URL | Size (bytes) | Verdict |
+|---|---|---|---|
+| **GTEx v11 gene median TPM** | `https://storage.googleapis.com/adult-gtex/bulk-gex/v11/rna-seq/GTEx_Analysis_2025-08-22_v11_RNASeQCv2.4.3_gene_median_tpm.gct.gz` | **10,129,906** (9.7 MB) | ✅ **use this — it is current** |
+| GTEx v10 gene median TPM | `.../bulk-gex/v10/rna-seq/GTEx_Analysis_v10_RNASeQCv2.4.2_gene_median_tpm.gct.gz` | 8,846,936 (8.4 MB) | ❌ superseded |
+| GTEx v8 gene median TPM | `.../bulk-gex/v8/rna-seq/GTEx_Analysis_2017-06-05_v8_RNASeQCv1.1.9_gene_median_tpm.gct.gz` | 6,952,331 (6.6 MB) | ❌ superseded |
+| HPA consensus tissue RNA | `https://www.proteinatlas.org/download/tsv/rna_tissue_consensus.tsv.zip` | **5,293,680** (5.0 MB) | ⚠️ **not independent** — see below |
+| **MANE Select v1.5 summary** (ID mapping) | `https://ftp.ncbi.nlm.nih.gov/refseq/MANE/MANE_human/current/MANE.GRCh38.v1.5.summary.txt.gz` | **1,115,288** (1.1 MB) | ✅ **the mapping spine** |
+| HGNC complete set (alias/prev symbols) | `https://storage.googleapis.com/public-download-files/hgnc/tsv/tsv/hgnc_complete_set.txt` | 16,940,274 (16.2 MB) | 🔶 only if you must resolve aliases |
+
+**Release drift matters here.** Verified by downloading each:
+
+| Release | Genes × tissue cols | GENCODE | `_PAR_Y` rows | Bytes |
+|---|---|---|---|---|
+| v8 | 56,200 × 54 | v26 | 44 | 6,952,331 |
+| v10 | 59,033 × 68 | v39 | 45 | 8,846,936 |
+| **v11** | **74,628 × 68** | **v47** | **0** | **10,129,906** |
+
+v11 was published 2026-01-15. I confirmed the header independently: `74628  68`, first columns
+`Name` (versioned ENSG), `Description` (HGNC symbol), then tissues starting `Adipose_Subcutaneous`.
+
+Three traps in that table:
+
+- ⚠️ **The 68 columns are 54 bulk tissues + 14 laser-capture-microdissection pilot columns.** Some LCM
+  "medians" are over **2 samples** (`Liver - Portal Tract`), 3 (`Pancreas - Islets`), 8, 9…
+  **Drop the 14 LCM columns.** A median of two donors is not a population baseline. That returns you to
+  v8's 54 comparable bulk tissues.
+- ⚠️ **Column naming changed between every release.** v8 → v10 changed the whole convention
+  (`Adipose - Visceral (Omentum)` → `Adipose_Visceral_Omentum`). v10 → v11 changed exactly one column,
+  a typo fix (`..._Lymphode_Aggregate` → `..._Lymphoid_Aggregate`). Anything keyed on that string breaks
+  **silently**.
+- ⚠️ **HPA consensus is partly derived from GTEx**, by HPA's own methods: the consensus nTPM is the
+  **maximum** of the HPA and GTEx values. Using both is not two independent sources — it is
+  double-counting, and HPA is the more permissive by construction. On the 19,697 shared genes the two
+  disagree on "max ≥ 1" for **731 genes (3.7 %)**, and 609 of those are HPA-yes/GTEx-no. On the
+  cancer-testis genes that matter most the discrepancy is ~100× (HPA calls CTAG1B 7.6 nTPM where GTEx
+  says 0.065). Use HPA as a cross-check and say which one you reported.
+
+There is **no smaller GTEx artifact**: the median file is the smallest in the bucket by an order of
+magnitude, there is no transcript-level median file, and there is no plain-TSV alternative — GCT only.
+
+**Licensing — one correction worth making loudly:**
+
+| Source | Licence | Vendorable into a public MIT repo? |
+|---|---|---|
+| **HPA** | **CC BY 4.0** (it was CC BY-SA 3.0 only up to v21) | ✅ attribution only — **no share-alike**, contrary to what is widely assumed |
+| HGNC | **CC0** | ✅ unconditionally |
+| MANE / NCBI | US Gov public domain | ✅ |
+| UniProt | CC BY 4.0 | ✅ |
+| TCGA open-access | No restrictions; acknowledgment sentence expected | ✅ |
+| **GTEx** | ⚠️ **No explicit licence.** NIH GDS policy, no DUA, no LICENSE file in the bucket | Yes in practice, but you are relying on "no stated restriction" rather than an affirmative grant |
+
+GTEx is the **weakest** licence position of the set — mildly ironic, since it is the one everyone vendors.
+Note also that HPA's CC BY does **not** launder the GTEx content inside it; their licence page explicitly
+carves out third-party data.
+
+**Recommendation:** vendor a **derived** table rather than the raw `.gct.gz`, and ship a `PROVENANCE.txt`
+with the upstream URL, sha256 and licence for each. Protein-coding rows × 54 bulk tissues at 2 d.p. gzips
+to about **2.0 MB** — 5× smaller than upstream, and it drops the 14 statistically worthless LCM columns,
+which is a correctness win as well as a size win. Suggested vendored set, ~4 MB total:
+
+```
+gtex_v11_pc_54tissue_median_tpm.tsv.gz   ~2.0 MB   normal-tissue SAFETY filter
+mane_v1.5_idmap.tsv.gz                   ~0.4 MB   identifier anchor
+hpa_consensus_max_ntpm.tsv.gz            ~0.2 MB   cross-check only
+PROVENANCE.txt                                     URLs + sha256 + licences
+```
+
+Attribution to include: GTEx (*Science* 369:1318–1330, doi `10.1126/science.aaz1776`) and
+HPA (Uhlén et al. 2015, *Science* 347, doi `10.1126/science.1260419`). HGNC is CC0 and needs none.
+
+**On TCGA tumour-type medians: no vendorable table exists.** Everything published is a per-sample matrix —
+UCSC Xena PANCAN EB++ is 331 MB, the GDC TSV of the same data is 1.88 GB, Xena TOIL is 1.32 GB,
+cBioPortal across 32 studies is 1.71 GB (and ships only z-scores, no medians). If you want tumour medians,
+**derive them once offline and vendor the ~2 MB result** — legally fine, since a per-tumour-type median is
+far more aggregated than the matrices already redistributed publicly. If you do: the tumour-type key in
+Xena's phenotype file is `_primary_disease`, and you must **filter to `Primary Tumor`** first, or
+`Solid Tissue Normal` and `Metastatic` samples will contaminate the medians.
+
+### 2.4 Gene identifiers — and the pitfalls
+
+**Key on unversioned Ensembl gene ID (`ENSG…`), with HGNC symbol as a fallback.** Use the MANE summary as
+the mapping spine — it is 1.1 MB, has **19,437 rows**, and ties every field together:
+
+```
+#NCBI_GeneID  Ensembl_Gene        HGNC_ID  symbol  RefSeq_nuc  RefSeq_prot  Ensembl_nuc  Ensembl_prot  MANE_status …
+GeneID:1      ENSG00000121410.14  HGNC:5   A1BG    NM_130786.4 NP_570602.2  ENST00000263100.8  ENSP00000263100.2  MANE Select
+```
+
+The pitfalls, with measured magnitudes rather than warnings:
+
+- **Version suffixes are not cosmetic.** Among genes shared between releases, the suffix changed for
+  **41.4 % (22,832 / 55,216)** from v8 → v10 and **21.0 % (11,880 / 56,474)** from v10 → v11. A versioned
+  exact-string join silently drops two-fifths of your genes — not an error, a **silent partial join**.
+  **Strip at the first `.` before joining.**
+- **Stable IDs still get retired.** Stripping the version is necessary but not sufficient: WASH7P was
+  `ENSG00000227232` in v8/v10 and is `ENSG00000310526` in v11. 2,514 v10 genes vanish in v11; 18,154 are new.
+- **`_PAR_Y` duplicates.** v8 has 44, v10 has 45, **v11 has 0** (GENCODE v47 dropped them). In v10 they look
+  like `ENSG00000182378.15_PAR_Y`; a naive `split('.')[0]` maps them onto the X copy and creates exactly
+  **45 silent duplicate keys** (59,033 rows → 58,988 unique). Preserve the suffix as part of the key or drop
+  those rows. If you pin v11, this problem does not exist.
+- **Do not key on symbols.** In GTEx v11, **33,835 of 74,628 rows (45 %) have an ENSG in the symbol column**
+  — no symbol at all. Plus 231 duplicated symbols and 732 rows named `Y_RNA`.
+- **Alias symbols are the real hazard.** Measured on the 45,083 approved HGNC records: approved symbol → ENSG
+  has **0 ambiguities** and ENSG → approved symbol has **3**. But **alias/previous symbols → ENSG has 1,466
+  ambiguities**, and — decisively — **580 alias/previous symbols collide with a *different* gene's approved
+  symbol.** `AMN`, `CAD`, `CCR9`, `ADAM23` and `ADCY3` are each simultaneously one gene's approved symbol and
+  another gene's alias. **An alias lookup that runs before, or merges with, approved-symbol lookup will
+  confidently return the wrong gene 580 different ways.**
+- **The Excel corruption class.** `SEPT2` → `2-Sep`, `MARCH1` → `1-Mar`. HGNC renamed the worst offenders in
+  2020 (`SEPTIN2`, `MARCHF1`, `MTARC1`), so you must handle both the corrupted forms and the pre/post-2020
+  spellings. If any input ever touched a spreadsheet, assume this has happened — and note it is
+  *unrecoverable* without the prev_symbol table.
+- **Your own VCF already sidesteps most of this.** `tumor_variants_large.vcf` carries
+  `GENE=KRAS;UNIPROT=P01116`, and `neofold/variants.py` keys on the **UniProt accession** — the cleanest
+  identifier you have. Map UniProt → ENSG once via MANE and cache it.
+
+**Do not panic at the headline join rate.** ENSG → HGNC looks alarming (v8 72.9 %, v10 69.6 %, **v11 54.1 %**)
+but the decline is entirely GENCODE v47 adding ~18k unnamed non-coding loci. Restricted to protein-coding:
+
+```
+HGNC protein-coding genes with an ENSG : 19,254
+  covered by GTEx v11 : 19,192  (99.7%)
+  covered by HPA      : 19,215  (99.8%)
+```
+
+The unmapped 45 % is non-coding and pseudogene — irrelevant for neoantigens. Do not let that number drive a
+design decision.
+
+**Resolution order to implement:**
+
+```
+1. UniProt accession (what variants.py already uses)  ->  ENSG  via MANE summary
+2. unversioned ENSG (strip /\.\d+$/, handle _PAR_Y)   ->  GTEx row        ~99.7% of protein-coding
+3. retired-ID remap via a vendored ENSG-history table  (e.g. WASH7P)
+4. APPROVED HGNC symbol -> ENSG                        (0 ambiguity)
+5. alias / previous symbol -> ONLY IF THE HIT IS UNIQUE; a non-unique hit
+   must resolve to UNMAPPED, never to a best guess       (580 collisions)
+6. otherwise: expression = UNKNOWN
+```
+
+**Unmapped policy — and it differs by direction, deliberately.**
+
+- **Expression (inclusion) direction: FAIL OPEN.** Annotate `expression_unknown` and let the candidate
+  through to human review. Failing closed would delete candidates for *bookkeeping* reasons and record it as
+  a biological finding. The asymmetry is the point: a silent identifier mismatch that quietly removes
+  candidates while the pipeline reports success is unauditable, whereas an extra flagged candidate is caught
+  by the binding screen and by review. **Fail-closed on a join failure makes your filter's stringency a
+  secret function of your annotation version.**
+- **Safety (off-tumour risk) direction: FAIL CLOSED.** If you cannot resolve the gene, you cannot assert the
+  gene is *not* highly expressed in heart. Flag it `risk_unknown` and require review before it is promoted.
+
+Log the unmapped rate either way; above a few percent, your mapping is broken, not the biology.
+
+### 2.5 The rule to implement
+
+```
+ANNOTATE every candidate with:
+    gtex_top_tissues  = the 3 normal tissues with the highest median TPM   <-- the PRIMARY use
+    gtex_max_tpm      = max median TPM across the 54 BULK tissues (LCM columns dropped)
+    gtex_tissue_tpm   = median TPM in the tumour's tissue of origin, if known
+    expression_source = "GTEx v11 population median across normal donors -
+                         NOT this patient's tumour RNA-seq"
+
+FLAG (the defensible direction - off-tumour safety):
+    gtex_max_tpm >= 100 in any normal tissue  -> "on-target/off-tumour risk: {tissue} @ {tpm} TPM"
+    gene unresolvable                          -> "risk_unknown" (FAIL CLOSED, needs review)
+
+TIER (weak, advisory only - never a hard drop):
+    gtex_max_tpm < 1 in every bulk tissue      -> "not detected in normal tissue"
+        !! DO NOT deprioritise on this alone. NY-ESO-1 (CTAG1B) sits at 0.065 TPM.
+           Low normal-tissue expression is a cancer-testis SIGNATURE, not a defect.
+    gene unresolvable                          -> "expression_unknown" (FAIL OPEN)
+
+NO GATE. Expression never removes a candidate from the funnel in this pipeline,
+because we do not have the measurement that would justify removing one.
+```
+
+On the 6-gene demo panel (BRAF, EGFR, KIT, KRAS, PIK3CA, TP53) this filter is a **no-op** — every one is a
+well-expressed driver. Say that out loud rather than showing a filter that appears to do nothing: its value
+appears on a genome-wide VCF, and on the demo it exists to demonstrate the annotation and the honesty
+statement, not to cut the funnel.
+
+### 2.6 What Filter 2 does NOT establish
+
+- **It is not the patient's expression, and no amount of processing makes it so.** This is the single
+  sentence that must appear in the UI next to the number.
+- **It does not establish that the mutant allele is transcribed.** That needs tumour RNA-seq variant
+  read support (`--trna-vaf`), which is a strictly stronger and different measurement.
+- **It does not establish that the protein is made, degraded by the proteasome, transported by TAP, or
+  loaded onto MHC.** mRNA abundance is several causal steps upstream of presentation.
+- **A low GTEx value is not evidence of tumour silence.** For cancer-testis antigens it is evidence of the
+  *opposite* of what a naive filter would conclude — measured: NY-ESO-1 at 0.065 TPM.
+- **A median hides the tail.** A gene with median 0 can be highly expressed in a minority of donors — and
+  that minority is a patient. This matters most in the *safety* direction, where the tail is the risk.
+- **GTEx donors are post-mortem**, with known tissue-specific RNA degradation and stress-response artefacts.
+- **Bulk medians hide cell-type structure.** A gene that is off in bulk pancreas can be on in islets.
+- **Normal-tissue medians say nothing about tumour-specific splicing, fusions or retained introns** — the
+  neoepitope sources your pipeline does not model anyway (`neofold/variants.py` is missense-only).
+
+**The two sentences to put in the UI, verbatim:**
+
+> ✅ Defensible: *"Candidate is in a gene with median TPM ≥ X in normal tissue T (GTEx v11), indicating
+> on-target/off-tumour risk."*
+> ❌ Not defensible: *"Candidate is expressed in this patient's tumour."*
 
 ---
 
@@ -449,6 +1031,21 @@ Two further notes:
 **Yes, conditionally — and the condition is the licence, not the science.**
 
 In favour:
+- **TESLA put binding stability in its three-feature presentation filter, with a threshold.** This is the
+  strongest external justification available for adding it, and it is far better evidence than anything
+  supporting the similarity metrics in §1.6a. Wells et al. 2020 (*Cell* 183:818–834.e13,
+  doi `10.1016/j.cell.2020.09.015`) found the optimal filter over 608 assayed peptides was:
+
+  ```
+  MHC binding affinity  <  34 nM
+  tumour abundance      >  33 TPM
+  pMHC binding stability > 1.4 h        <-- this is what TLStab predicts
+  ```
+
+  which removed **93 % of non-immunogenic peptides while keeping 55 % of immunogenic ones**
+  (p = 3.7 × 10⁻⁸). Adding the recognition features took it to 98 % filtered at precision > 0.70.
+  **Use `> 1.4 h` as your stability threshold and cite TESLA for it** — with the §3.1a caveat that
+  TLStab is out-of-distribution for HLA-C and for non-9-mers.
 - Genuinely orthogonal axis (kinetics vs equilibrium), which is a real scientific addition rather than a
   second opinion on the same quantity.
 - Fully offline, weights in-repo, CPU-only, ~90 MB, runs in milliseconds per peptide on a tiny MLP.
@@ -513,7 +1110,7 @@ Recommended pipeline order — chosen by *cost*, since correctness no longer dep
 | Stage | What | Cost | Gate? |
 |---|---|---|---|
 | 0 | Variant → mutated protein → 8–11mer windows | µs | — |
-| 1 | **Expression** annotation (gene-level dict lookup) | µs | **No** — tier only (§2) |
+| 1 | **Expression / off-tumour-risk** annotation (gene-level dict lookup) | µs | **Never** — flag only (§2) |
 | 2 | MHCflurry screen, MT **and** WT at the same register | ms | No |
 | 3 | **Self-similarity** exact match + near-self annotation | µs after index build | **Yes** — hard drop on exact self |
 | 4 | Agretopicity / DAI computed from stage 2 | free | **No** — score, not gate (§5) |
@@ -601,10 +1198,21 @@ surface. DAI is structurally blind to this entire mechanism.
 - [ ] **Do not** gate on ≤1 mismatch — annotate only, and exclude the cognate WT window
 - [ ] Annotate the mismatch **position** (anchor P2/PΩ vs TCR-facing P4–P6), not just the count
 - [ ] **Add the QC invariant**: assert ≥99 % of WT windows are found verbatim (measured 100.0 %)
+- [ ] Replace the half-seed dict with a packed-`uint64` + `np.searchsorted` index — measured 547 MB → 83 MB
+      and 4.1 ms → 5–44 µs per exact lookup, identical answers (§1.5)
 - [ ] Add `dai_log2` to `ScreenResult.as_dict()`; cite Duan 2014 and note the ratio-vs-difference drift
 - [ ] Add `anchor_status` (anchor vs TCR-facing) from the mutation offset `peptide_windows` already returns
 - [ ] Stop `fold_change` being an AND-gate in `triage()` — it currently outputs zero KRAS G12D candidates
       on HLA-A\*11:01 (§5)
+
+**Filter 2 — expression**
+- [ ] Vendor **GTEx v11** (not v10/v8), derived to protein-coding × **54 bulk tissues** — drop the 14 LCM columns
+- [ ] Vendor `MANE.GRCh38.v1.5.summary.txt.gz` as the identifier spine; join UniProt → ENSG
+- [ ] Strip ENSG version at the first `.`; handle/drop `_PAR_Y` (v11 has none)
+- [ ] Never resolve a non-unique alias symbol — 580 collide with another gene's approved symbol
+- [ ] **Build the off-tumour safety flag, not the inclusion gate** (NY-ESO-1 = 0.065 TPM)
+- [ ] Fail **open** on unmapped for expression; fail **closed** on unmapped for safety
+- [ ] Ship `PROVENANCE.txt` with URL + sha256 + licence (GTEx has *no* explicit licence; HPA is CC BY 4.0)
 
 **Filter 3 — TLStab**
 - [ ] Resolve the licence question before vendoring anything; install from upstream at setup time

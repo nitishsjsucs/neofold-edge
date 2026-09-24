@@ -132,15 +132,28 @@ PAIRS = {
         "partner": "kras_g12d_9mer_wt_model_0", "crystal": "6ULN",
     },
     "kras_g12d_9mer_wt_model_0": {
-        "order": 2, "label": "KRAS wild-type — normal tissue", "peptide": "GAGGVGKSA",
+        # "germline counterpart", not "normal tissue": GAGGVGKSA occurs in
+        # several RAS-family proteins, so it is not tissue-specific.
+        "order": 2, "label": "KRAS germline counterpart", "peptide": "GAGGVGKSA",
         "role": "wild_type", "partner": "kras_g12d_9mer_mut_model_0",
     },
+    # NOT a neoantigen. ICDFGLARV occurs verbatim in ERK2/MAPK1 (P28482) and
+    # NLK (Q9UBE8): it contains the DFG motif shared across the kinome. Our
+    # binding screen ranked it highly -- 178 nM, the largest differential in
+    # the demo -- and the self-similarity filter disqualifies it. Kept and
+    # labelled as a negative control, because it is the clearest illustration
+    # that a large differential does not mean tumour-specific.
     "kit_d816v_mut_model_0": {
-        "order": 3, "label": "KIT D816V — tumour", "peptide": "ICDFGLARV", "role": "mutant",
-        "partner": "kit_d816v_wt_model_0",
+        "order": 3, "label": "KIT D816V — self peptide (control)",
+        "peptide": "ICDFGLARV", "role": "negative_control",
+        "partner": "kit_d816v_wt_model_0", "disqualified": True,
+        "why": ("occurs verbatim in ERK2/MAPK1 (P28482) — the DFG motif is "
+                "conserved across protein kinases, so this is a normal human "
+                "peptide, not a neoepitope"),
     },
     "kit_d816v_wt_model_0": {
-        "order": 4, "label": "KIT wild-type", "peptide": "ICDFGLARD", "role": "wild_type",
+        "order": 4, "label": "KIT germline counterpart",
+        "peptide": "ICDFGLARD", "role": "wild_type",
         "partner": "kit_d816v_mut_model_0",
     },
 }
@@ -241,10 +254,15 @@ PREREGISTERED_CONTACTS = {
         "mhc_residue": 156,
         "mutation_position": 3,
         "rationale": ("HLA-C*08:02 prefers aspartate at peptide position 3, and "
-                      "crystal structure 6ULN shows that residue salt-bridging "
-                      "Arg156 in the D pocket. The G12D substitution is what "
-                      "places an aspartate there."),
+                      "crystal structure 6ULN shows that residue making charge "
+                      "contacts to Arg156 AND Arg97. The G12D substitution is "
+                      "what places an aspartate there."),
         "reference": "PDB 6ULN; Sim et al., PNAS 2020; Rasmussen et al., J Immunol 2014",
+        "limitation": ("Whether this contact CAN form is a deterministic function "
+                       "of the peptide sequence — position 3 is aspartate or it is "
+                       "not — so the structure prediction adds no information on "
+                       "that point. What the prediction contributes is the "
+                       "geometry, which matches the crystal to 0.15 Å."),
     },
 }
 

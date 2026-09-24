@@ -9,6 +9,13 @@ Re-computed numbers are marked **[reproduced]**; numbers I could not reproduce f
 This document is adversarial on purpose. It is a list of things that are wrong, imprecise, or
 overclaimed. It is not a summary of what works.
 
+**Currency.** Audited against working-tree state at commit `1039f4c`. Work landed during the audit and is
+already reflected: `neofold/selfsim.py` exists, and the `2×` fold-change threshold has been replaced by
+**DAI ≥ 10** with a citation (Rech et al., *Cancer Immunol Res* 2018 / TESLA's agretopicity < 0.1) — so
+§C2's recommendation is **already done**; §C1's naming guidance is partly done in `screen.py` but not in the
+UI. **Everything in Tier 1 and Tier 2 of the fix list was still open at the time of writing** and I
+re-checked each one against the working tree.
+
 ---
 
 ## 0. Verdict table
@@ -34,23 +41,23 @@ overclaimed. It is not a summary of what works.
 | B8 | 6ULN crystal p3Asp–Arg156 = 2.73 Å | **CORRECT** **[reproduced]** | — |
 | B9 | Boltz prediction reproduces it at "2.52 Å" | **IMPRECISE** | Repo model measures **2.58 Å** **[reproduced]** |
 | **C. Screening logic** |
-| C1 | MT-vs-WT differential is a real criterion | *(section C)* | |
-| C2 | 2× fold-change threshold | *(section C)* | |
-| C3 | `presentation_score >= 0.10` | *(section C)* | |
+| C1 | MT-vs-WT differential is a real criterion | **CORRECT** | It is the differential agretopicity index (Duan 2014); say so, and say which direction you use |
+| C2 | 2× fold-change threshold | **ARBITRARY (but conservative)** | Uncited. pVACtools ships this filter **off** (default 0); its documented floor is 1× |
+| C3 | `presentation_score >= 0.10` | **WRONG (uncited)** | MHCflurry's own docs: *"there is no universal presentation-score threshold"* |
 | C4 | `processing_score` reported without flanks | **IMPRECISE (missed, not broken)** | Correct model is auto-selected, but you *have* the flanks; costs ~3.3% PPV and the column is mislabelled |
 | C5 | "35× stronger" for the 10-mer (§6B) | **WRONG (arithmetic)** | Correct value is **22.6×**; the guide compared a 10-mer to a 9-mer **[reproduced]** |
-| C6 | Omitted: expression, clonality, TAP, stability | *(section C)* | |
+| C6 | Omitted: expression, clonality, TAP, stability | **SERIOUS** | **Gene expression** is the most damaging omission by a wide margin; TAP/cleavage the least |
 | **D. Structure claims** |
-| D1 | peptide backbone RMSD after MHC superposition | *(section D)* | |
-| D2 | per-chain CA RMSD for the TCR complex | *(section D)* | |
+| D1 | peptide backbone RMSD after MHC superposition | **CORRECT metric, overclaimed result** | Field standard; but PANDORA's median is 0.70 Å, so 0.509 Å is normal, not exceptional |
+| D2 | per-chain CA RMSD for the TCR complex | **NON-STANDARD** | Use **DockQ**/CAPRI + CDR-loop RMSD; whole-chain RMSD is diluted by the easy framework |
 | D3 | "the model knows recognition is harder" (ipTM 0.88 < 0.99) | **WRONG** | Your own WT ternary run scores the same **[reproduced]** |
 | D4 | "0.486 Å" (README headline) | **[unverifiable]** | Repo reproduces **0.509 Å** and **0.560 Å**; tests pin 0.56 |
 | D5 | "deviation highest at termini, lowest in the middle" | **WRONG** | Minimum is at **p2–p3**, rising monotonically to p9 **[reproduced]** |
 | **E. MD** |
-| E1 | ~1 ns is meaningful | *(section E)* | |
-| E2 | "contact persistence" | *(section E)* | |
-| E3 | OBC2 implicit solvent under a salt-bridge claim | *(section E)* | |
-| E4 | 10 ps restrained equilibration | *(section E)* | |
+| E1 | ~1 ns is meaningful | **NO** | 100× below the field floor; replicate agreement at 1 ns is a known *undersampling* signature |
+| E2 | "contact persistence" | **INVENTED NAME, FLAWED DEFINITION** | It is Q/fnat referenced to your own predicted pose, so a rigid wrong pose scores 1.0 |
+| E3 | OBC2 implicit solvent under a salt-bridge claim | **WRONG TOOL FOR THIS CLAIM** | GB over-stabilises salt bridges by **3–4 kcal/mol**, at zero ionic strength by default |
+| E4 | 10 ps restrained equilibration | **YES, laughably short** | Field uses 500 ps restrained heating; Knapp discards 10 ns |
 | E5 | replicates are comparable | **WRONG (design flaw)** | Trajectories are **0.64–1.00 ns**, unequal across replicates **[reproduced]** |
 | **Data provenance** |
 | P1 | KIT D816V peptide `ICDFGLARV` shown as "tumour" | **WRONG — fatal for that panel** | It is an **exact self peptide** in ERK2/MAPK1 and NLK **[reproduced]** |
@@ -133,7 +140,7 @@ mutant/WT differential`**, and `investigate`'s reason string should say "differe
 "tumour-specific". The newly-added `neofold/selfsim.py` is the thing that actually tests tumour
 specificity — wire it into the tier name.
 
-### A6. 50 nM / 500 nM — real, but obsolete as decision rules
+### A6. 50 nM / 500 nM — real cut-offs, but superseded by %rank (and the literature is not unanimous)
 
 **Origin.** The affinity bands trace to Sette A et al., *J Immunol* 1994;153:5586–5592 (PMID 7527444), which
 established that IC50 ≤ 500 nM is broadly necessary for class-I immunogenicity, with ≤50 nM enriching
@@ -376,6 +383,92 @@ information that the peptide sequence did not already carry.
 
 ## C. The screening logic
 
+### C1. Is the mutant-vs-wild-type differential a real criterion? — **YES, it is real and well-established**
+
+It has a name, an originating paper and a validation cohort:
+
+- **Duan F, Duitama J, Al Seesi S, et al.** *Genomic and bioinformatic profiling of mutational neoepitopes
+  reveals new rules to predict anticancer immunogenicity.* **J Exp Med** 2014;211(11):2231–2248.
+  DOI 10.1084/jem.20141308. PMID 25245761. Introduced the **differential agretopicity index (DAI)**.
+  Verbatim: *"the NetMHC scores of the unmutated counterparts of the predicted mutated epitopes were taken
+  into consideration by **subtracting them from** the corresponding NetMHC scores of the mutated epitopes."*
+  So the original DAI is a **difference of NetMHC log-space scores, and Duan applied no threshold at all** —
+  epitopes were *ranked* by it.
+- **Ghorani E, Rosenthal R, McGranahan N, et al.** *Differential binding affinity of mutated peptides for
+  MHC class I is a predictor of survival in advanced lung cancer and melanoma.* **Ann Oncol**
+  2018;29(2):271–279. PMC5834109. DAI-high neoantigen burden predicted survival.
+- **Łuksza M, Riaz N, Makarov V, et al.** *A neoantigen fitness model predicts tumour response to checkpoint
+  blockade immunotherapy.* **Nature** 2017;551(7681):517–520. DOI 10.1038/nature24473. PMID 29132144.
+  Neoantigen quality = **A × R**, where **amplitude A is the ratio of predicted wild-type to mutant
+  dissociation constants (Kd_WT / Kd_MT)** and R is TCR cross-reactivity. **This is exactly your
+  `fold_change`.** Cite it — it gives your metric a name and a Nature paper instead of looking home-made.
+
+**Three different conventions are in circulation, and you must state which you use.** Duan = a **difference
+of scores**; Łuksza's amplitude = **Kd_WT / Kd_MT** (your direction, higher = better); TESLA's agretopicity =
+**MT/WT** (the **inverse** of yours, lower = better). `fold_change = wt_affinity_nm / affinity_nm` matches
+**Łuksza's amplitude**. A reviewer comparing your column to a TESLA agretopicity column will read it upside
+down unless you say so.
+
+**The counter-example that should worry you most.** Duan's own Table 5 lists the validated, tumour-protective
+epitopes their method found — and they are mostly *weak* binders with unfavourable ratios. `Dhx8.1` has
+mutant/wild-type IC50 of **2192 / 1653 nM** and scored strongly in ELISpot; its WT/MT ratio is **0.75**,
+i.e. *below 1*. **Your pipeline applies a 500 nM gate AND a ≥2× gate, so it would have discarded the founding
+paper's own validated epitopes.** That is the single most precise attack on the two-gate design, and the
+honest answer is that both gates are tuned for precision at the cost of recall — which is a defensible
+choice for GPU triage, but you should say it out loud rather than be shown it.
+
+**And the criticism you must be ready for: DAI does not validate well on held-out data.**
+Nibeyro G, Baronetto V, Folco JI, et al., *Front Immunol* 2023;14:1094236. DOI 10.3389/fimmu.2023.1094236.
+PMID 37564650 — across 199 tumour-specific neoantigens and 16 metrics, **DAI reached AUC 0.59 (anchor) /
+0.56 (non-anchor), and "no significant difference was found between immunogenic and non-immunogenic TSNs
+according to DAI values (P = 0.25)."** Binding-affinity-derived metrics generally scored AUC 0.52–0.60.
+
+*Fair caveat to state alongside it:* that benchmark required every peptide to have **experimentally
+validated binding and presentation** for inclusion. So it shows these metrics fail to separate immunogenic
+from non-immunogenic peptides **among peptides already known to be presented** — not that the filter is
+useless upstream, which is where you apply it. Quoting it with that caveat is more credible than avoiding it.
+
+### C2. Is 2× defensible or arbitrary? — **arbitrary, uncited, but erring in the safe direction**
+
+**`MIN_FOLD_CHANGE = 2.0` has no citation anywhere in the repo.** Here is what pipelines actually do:
+
+| Pipeline | WT/MT parameter | Default |
+|---|---|---|
+| **pVACtools** (Hundal J et al.) | `--minimum-fold-change` — "Minimum fold change between mutant binding score and wild-type score" | **0 — filters nothing by default** |
+| pVACtools, documented meaningful value | — | **1** ("a value of 1 requires better binding to the mutant than wild-type peptide") |
+| pVACtools binding threshold | `-b/--binding-threshold` | **500 nM** |
+| pVACtools percentile gates | `--binding-percentile-threshold`, `--presentation-percentile-threshold` | **2.0**, with `--percentile-threshold-strategy` defaulting to **conservative** (must pass BOTH nM and percentile) |
+
+So: **2× is stricter than any published default.** The reference implementation ships the filter **off**, and
+the value its own documentation calls meaningful is **1** (merely "better than wild-type"). Your 2× is
+therefore *conservative*, not reckless — but it is still a magic number, and "we used 2×" invites "why not
+1× or 5×?" with no answer.
+
+**The full landscape of what anyone actually uses:**
+
+| Source | Differential criterion |
+|---|---|
+| Duan 2014 (originator) | **no threshold** — rank by DAI |
+| pVACtools | default **0** (off); docs call **1** "a sensible option" |
+| NeoPredPipe (Schenck RO et al., *BMC Bioinformatics* 2019) | **no WT comparison at all** — reports %rank only (SB < 0.5, WB < 2) |
+| MuPeXI (Bjerregaard AM et al., *Cancer Immunol Immunother* 2017;66(9):1123–1130, PMID 28429069) | priority score using binding, expression and **similarity to normal peptides** (AUC 0.63) |
+| Łuksza 2017 | amplitude used **continuously**, not thresholded |
+| **TESLA (Wells 2020)** | empirical cut at **agretopicity < 0.1, i.e. mutant binds ≥ 10× better** |
+
+**So 2× is nobody's published cut.** It sits in the gap between "off" and TESLA's empirically derived 10×.
+
+**Two defensible responses, pick one:**
+1. **Honest arbitrariness + sensitivity analysis:** "pVACtools ships this off, TESLA's empirical cut is 10×,
+   and we chose 2× as a loose sanity check. Here is the shortlist at 1×, 2×, 5× and 10×." You have 38
+   candidates; this costs seconds and converts a magic number into a *finding*.
+2. **Adopt a cited value:** use **1×** (pVACtools' documented floor) as the gate and report the amplitude
+   continuously, as Łuksza does — then you have a Nature citation for the metric and a reference
+   implementation's default for the threshold.
+
+**Also worth noting:** pVACtools' default strategy requires a candidate to pass **both** an nM and a
+percentile threshold. You gate on nM and `presentation_score` and **no percentile at all** (§A6) — so on this
+axis you are *less* stringent than the reference pipeline, not more.
+
 ### C3. What the MHCflurry columns actually mean — and where you are reading them wrong
 
 **Citation:** O'Donnell TJ, Rubinsteyn A, Laserson U. *MHCflurry 2.0: Improved Pan-Allele Prediction of
@@ -442,20 +535,32 @@ clinician: your demo scores KRAS, TP53, BRAF, PIK3CA, EGFR and KIT without ever 
 transcribes them.
 
 **2. pMHC complex stability.** Harndahl M, Rasmussen M, Roder G, et al., *Eur J Immunol* 2012;42(6):1405–1416,
-DOI 10.1002/eji.201141774, PMID 22678897 — **stability is a better correlate of CTL immunogenicity than
-affinity**. Directly relevant because your entire screen is affinity-based and `NetMHCstabpan`
-(Rasmussen 2016) exists and is cheap. Sim 2020 even reports thermal melts for your exact peptides
-(9-mer 51 °C vs 10-mer 45 °C) — a stability signal that **inverts** your presentation-score ranking.
+DOI 10.1002/eji.201141774, PMID 22678897 — *"immunogenic peptides tend to be more stably bound to MHC-I
+molecules compared with nonimmunogenic peptides"*, and stability prediction accounted for **30% of
+non-immunogenic binders previously written off as "holes in the T-cell repertoire."** TESLA independently
+confirms it, and note the p-values: **stability p = 1.4×10⁻⁴ is a *stronger* association than expression
+p = 0.01**. I still rank expression first because it is a **logical gate** (no transcript, no peptide) rather
+than a correlate — but if you only have appetite for one addition, the statistics favour stability.
+
+MHCflurry supplies **no stability axis at all**; `NetMHCstabpan` (Rasmussen M et al., *J Immunol*
+2016;197(4):1517–1526, PMID 27402703) exists, is cheap and is pan-specific. And Sim 2020 already reports
+thermal melts for your exact peptides — **9-mer 51 ± 1.3 °C vs 10-mer 45 ± 1.8 °C** — a stability signal that
+**inverts your presentation-score ranking** (which puts the 10-mer first). That is a free, citable
+demonstration that your single-axis ranking is missing something real.
 
 **3. Clonality / variant allele frequency.** A subclonal neoantigen is present in only part of the tumour.
 McGranahan N, Furness AJS, Rosenthal R, et al., *Science* 2016;351(6280):1463–1469,
 DOI 10.1126/science.aaf1490, PMID 26940869 — **clonal** neoantigen burden, not total burden, predicts
 checkpoint-blockade response and sensitivity. Your VCF has no VAF/CCF field at all.
 
-**4. Proteasomal cleavage and TAP beyond MHCflurry's AP score.** Genuinely lower priority: MHCflurry's
-processing predictor is trained on real MS hits and partially captures both (the authors say so), and
-NetChop/TAP predictors add little on top. This is the omission you can most easily defend — say so
-explicitly rather than listing it as a gap.
+**4. TAP transport and proteasomal cleavage beyond MHCflurry's AP score.** Genuinely lower priority, and the
+omission you can most easily defend: MHCflurry's processing predictor is trained on real MS hits and its
+authors state its C-terminal preferences *"may reflect TAP binding and/or proteasomal cleavage"*, so NetChop
+and TAP predictors are partly redundant with it. (The TAP reference is Peters B, Bulik S, Tampé R,
+van Endert PM, Holzhütter HG, *J Immunol* 2003;171(4):1741–1749, PMID 12902473 — but I could not verify a
+figure for how much TAP adds on top of binding prediction, so do not quote one.) **Say this explicitly
+rather than listing it as a gap** — conceding the two that matter and defending the two that do not is more
+convincing than conceding all four.
 
 **The honest framing for the pitch:** you are a **binding**-prediction triage tool, not a neoantigen
 prioritisation pipeline. Real pipelines (pVACtools, NeoPredPipe) are mostly *orchestration around* expression
@@ -955,3 +1060,286 @@ All seven proteins in `data/sequences/proteins.fasta` are **byte-identical to th
 sequences** **[reproduced]** (P01116, P04637, P15056, P42336, P00533, P10721, P61769). The `apply_missense`
 reference check is genuinely valuable and I could not break it. KIT numbering is correct: P10721 residue 816
 is Asp, and residues 808–816 = `ICDFGLARD` **[reproduced]**, so the D816V register is right.
+
+---
+
+## F. What a sceptical immunologist would say
+
+The eight most damaging criticisms, each with a citation and the best *honest* response. These are ordered
+by how hard they are to answer, not by how likely they are to be asked.
+
+### F1. "You have validated nothing. Your one case is in every model's training set."
+
+**The charge.** 6ULN was released 2020-05-27 and is near-certainly in Boltz-2's training data. The KRAS
+G12D/HLA-C\*08:02 epitopes have been in IEDB since 2016 and MHCflurry 2.0 trains on IEDB plus mass-spec
+(O'Donnell TJ et al., *Cell Systems* 2020;11(1):42–48.e7, PMID 32711842). So "MHCflurry ranks both published
+epitopes #1 and #2 of 38" is **circular**: the model was trained on the answer. Likewise the 0.509 Å RMSD.
+
+**Best honest response.** "It is retrospective and we say so. It is a *system* test — VCF row to ranked
+peptide to 3D structure to measured contact, offline, in under a minute — not an accuracy claim. The
+accuracy claim we *can* make is narrow: we reconstruct a known complex to 0.5 Å on-device. For a real
+accuracy claim you would need a temporal holdout against structures released after the training cutoff, and
+we have not done that." **The README does not currently carry this caveat — only the BUILD-GUIDE does. Fix
+that.**
+
+### F2. "`ICDFGLARV` is in ERK2. You are showing me a self peptide labelled 'tumour'."
+
+**The charge.** **[reproduced]** — the KIT D816V demo peptide occurs verbatim in MAPK1/ERK2 (P28482) and NLK
+(Q9UBE8). It is not a neoantigen; T cells against it are centrally tolerised and a therapeutic targeting it
+would be autoreactive. It also carries the demo's largest fold change (112×).
+
+**Best honest response.** There is no good defence of shipping it as-is. The *good* move is to pre-empt:
+**turn it into the demo's punchline.** "Here is a candidate with 112× differential agretopicity and a
+textbook salt bridge — and our self-proteome filter kills it, because the DFG kinase motif is shared across
+the kinome. This is why fold change is not tumour specificity." That converts your worst bug into your best
+slide. `neofold/selfsim.py` already does the work; the structure panel just does not consult it.
+
+### F3. "Presentation is not immunogenicity, and your own citation says you will be wrong 94% of the time."
+
+**The charge.** Wells DK, van Buuren MM, Dang KK, et al. (Tumor Neoantigen Selection Alliance),
+*Key Parameters of Tumor Epitope Immunogenicity Revealed Through a Consortium Approach Improve Neoantigen
+Prediction*, **Cell** 2020;183(3):818–834.e13, DOI 10.1016/j.cell.2020.09.015, PMID 33038342. Verbatim:
+*"608 peptides selected from among the top-ranked peptides from all groups… were tested for immunogenicity
+by pMHC multimer-based assays and **37 (6%)** of those were found to be immunogenic."* **Your 37/608 is
+correct.** Worse for the field: *"no team included more than 20 of the 37 immunogenic peptides in their top
+100."*
+
+**And TESLA names the features you omit.** Immunogenic pMHC had significantly stronger measured binding
+affinity (p = 4×10⁻⁶), **higher tumour abundance (p = 0.01)**, **higher binding stability (p = 1.4×10⁻⁴)**,
+and were **less** hydrophobic (p = 0.04). Their threshold set, verbatim: *"binding affinity less than
+**34 nM**, tumor abundance greater than **33 TPM**, and binding stability greater than **1.4 h**"*, which
+*"filtered out 93% of non-immunogenic peptides while maintaining 55% of immunogenic peptides."* Even then,
+of the 286 peptides with all five features measured, **29 passed → 12 immunogenic / 17 not → PPV 0.41.**
+Their closing summary: immunogenic epitopes *"have strong MHC binding affinity and long half-life, are
+expressed highly, and have either **low agretopicity** or high foreignness"* — with the empirical cut at
+**agretopicity < 0.1 (mutant ≥ 10× better than wild-type)**.
+
+⚠️ **Use these numbers carefully:** TESLA's analyses used **measured** affinity and **measured** stability,
+not predicted values. Quoting "34 nM" as a prediction threshold would be a misreading.
+
+**Best honest response.** "We agree, and we never claim immunogenicity. We output a ranked hypothesis list
+and we separate presentation from recognition from immunogenicity explicitly in the UI. TESLA also tells us
+exactly what we are missing: of their five discriminating features we cover one and a half — affinity, and
+mutation position only implicitly. We have no expression, no stability, and our agretopicity gate is 2×
+against their empirical 10×." **This is the project's strongest ground — lean on it, and let TESLA write
+your roadmap slide.**
+
+### F4. "Your structural panel measures something you could read off the sequence."
+
+**The charge, and it is the sharpest one available.** The "pre-registered contact" is: does peptide position 3
+carry an Asp that reaches Arg156? **[reproduced]** across all four predicted structures, *every* peptide with
+Asp at p3 formed the salt bridge (2.49–2.58 Å) and the one with Gly did not — because Gly has no side chain.
+Boltz will build this contact for any p3-Asp peptide. So the measurement's output is a deterministic function
+of `peptide[2] == 'D'`, and the 58 s of GPU structure prediction adds no information to it.
+
+**Best honest response.** "Correct — for *this* contact, the chemistry is decidable from the sequence, and
+that is precisely why we trust it: the wild-type failure is chemical, not predictive. The structure is a
+communication and inspection layer, not a discriminator, and we say that in the UI. What the structure would
+buy you is contacts that are *not* sequence-decidable — bulge conformation, p4–p8 side-chain orientation,
+TCR-facing surface — and we do not currently measure any of those." Then measure one.
+
+### F5. "One nanosecond of implicit-solvent MD tells you nothing, and it over-stabilises the exact bond you are claiming."
+
+**The charge.** Two independent hits. (a) Knapp B, Ospina-Forero L, Deane CM, *JCTC* 2018;14(12):6127–6138,
+DOI 10.1021/acs.jctc.8b00391 — *"a 100 ns TCRpMHC simulation is the current state of the art"*, and short runs
+agree with each other **because of undersampling**, not convergence. (b) Geney R, Layten M, Gomperts R,
+Hornak V, Simmerling C, *JCTC* 2006;2(1):115–127, DOI 10.1021/ct050183l, PMID 26626386 — GB makes salt
+bridges **"too stable by as much as 3−4 kcal/mol"**, with the error localised to **hydrogens on charged
+nitrogens**, i.e. exactly Arg156's guanidinium. OpenMM's GB default is **zero ionic strength**, so there is
+no Debye screening either.
+
+**Best honest response.** "We agree it cannot support a stability claim and the UI says so. But you have
+found something worse than we stated: the solvent model specifically inflates the interaction our headline
+depends on. The right fix is that the salt-bridge claim should not rest on MD at all — it rests on the
+crystal structure at 2.73 Å and the prediction at 2.58 Å. We will cut MD out of that argument." **Do that.**
+
+### F6. "ipTM 0.88 does not mean the model 'knows recognition is harder'."
+
+**The charge.** ipTM is a self-assessment with a d₀ that depends on total complex size, so a 383-residue and
+an 812-residue run are not on the same scale (Dunbrack RL Jr, bioRxiv 2025, DOI 10.1101/2025.02.10.637595,
+PMID 39990437). And **your own wild-type ternary run refutes it [reproduced]**: TCR9d against the
+non-recognised wild-type peptide scores TCR↔peptide ipTM 0.867/0.864 versus 0.880/0.879 for the cognate
+G12D peptide, with a *higher* global ipTM (0.9489 vs 0.9468).
+
+**Best honest response.** "You are right, and we have the control that proves it — we just drew the wrong
+conclusion from it. The honest reading is the opposite of what we wrote: the ~0.88 is a property of the
+interface, invariant to whether recognition actually occurs. That is a third independent demonstration that
+Boltz confidence does not discriminate, this time at the recognition step." **Delete the claim, keep the
+data, flip the conclusion. `tests/test_tcr.py::test_tcr_interfaces_are_less_confident_than_the_pmhc_core`
+currently enshrines the wrong reading in a test.**
+
+### F7. "You typed in one HLA allele. Patients have six, and they compete."
+
+**The charge.** `run_triage(..., allele: str)` scores a single allele **[reproduced]**. A real patient has up
+to six class I allotypes; a peptide presented by any one of them is a candidate, and peptides compete for
+loading across them. HLA-C\*08:02 is also uncommon — the Tran 2016 result applies only to patients carrying
+it, which is a small minority.
+
+**Best honest response.** "It is a demo limitation, not an architectural one — the screen loops over
+alleles trivially and MHCflurry supports 14,884 of them. What we have not modelled is inter-allele
+competition, which nobody models well either. But we should stop drawing a patient-level funnel diagram off
+a single-allele run."
+
+### F8. "Your differential is agretopicity, not specificity — and it does not validate."
+
+**The charge.** Two parts. (a) Terminology: "tumour-specific" means absent from the normal proteome, not
+"binds better than wild-type" (§A5). (b) Evidence: Nibeyro G et al., *Front Immunol* 2023;14:1094236,
+PMID 37564650 found **DAI AUC 0.56–0.59** with **no significant separation of immunogenic from
+non-immunogenic peptides (P = 0.25)**.
+
+**Best honest response.** "The terminology is wrong and we will fix it — it is differential agretopicity,
+and we now have a self-proteome filter that tests actual specificity. On the evidence: that benchmark
+conditions on peptides already known to be presented, so it shows DAI does not separate immunogenicity among
+presented peptides, which is not the job we are using it for. We use it to avoid spending GPU time on
+candidates whose wild-type binds just as well. That is a triage heuristic, and we should label it as one
+rather than as the 'personalization signal'." (`neofold/screen.py:39` currently calls it exactly that.)
+
+### Honourable mentions — smaller, but each is a free hit
+
+- **"Which number is it?"** — 0.486 / 0.509 / 0.560 Å all circulate for one measurement (§D4).
+- **"Your per-residue pattern is backwards."** — the guide says deviation is lowest in the middle; it is
+  lowest at p2–p3 **[reproduced]** (§D5).
+- **"Your 35× is a 22.6×."** — the guide compares a 10-mer mutant to a 9-mer wild-type (§below).
+- **"Your VCF says GRCh38 and one row is GRCh37, and thirteen rows are off the end of the chromosome."** (§P2–P3)
+- **"6ULN is TCR9d from Sim 2020, not a Tran 2016 TCR."** (§B3)
+- **"You quoted the worse half of your own MD citation."** — 0.80→0.81 is the random split; the debiased
+  split is 0.61→0.80 (§E7).
+
+---
+
+## G. The arithmetic error in BUILD-GUIDE §6B
+
+Worth its own section because it is the one number on the "scientific heart of the demo" slide that is wrong.
+
+The guide's neoantigen-specificity table reads:
+
+| | Mutant (G12D) | Wild-type | Fold change |
+|---|---|---|---|
+| `GADGVGKSA` vs `GAGGVGKSA` | 74.1 nM | 3,656 nM | **49× stronger** |
+| `GADGVGKSAL` vs **`AGGVGKSAL`** | 38.9 nM | **1,355 nM** | **35× stronger** |
+
+**Row 1 is correct** — 3656.5 / 74.1 = 49.4 **[reproduced]**.
+
+**Row 2 is wrong.** `GADGVGKSAL` is a **10-mer** spanning KRAS 10–19; its wild-type counterpart at the same
+register is **`GAGGVGKSAL`** (10-mer, **876.9 nM**), giving **22.6×**. `AGGVGKSAL` is a **9-mer** — it is the
+wild-type counterpart of a *different* candidate (`ADGVGKSAL`, which ranks 4th and is *deprioritised* with a
+fold change of **0.4**). Two rows of the results table were crossed.
+
+**[reproduced]** by running the project's own pipeline:
+
+```
+rank peptide      wt                  nM       wtnM    fold    pres   tier
+   1 GADGVGKSAL   GAGGVGKSAL        38.9      876.9    22.6   0.950  investigate
+   2 GADGVGKSA    GAGGVGKSA         74.1     3656.5    49.4   0.570  investigate
+   3 VGADGVGKSAL  VGAGGVGKSAL      230.0      904.2     3.9   0.341  investigate
+   4 ADGVGKSAL    AGGVGKSAL       3265.0     1355.4     0.4   0.136  deprioritised
+```
+
+The code in `neofold/variants.py::build_candidates` is **correct** — it takes
+`reference[start-1 : start-1+len(pep)]`, which yields the same-register, same-length wild-type. Only the
+hand-written guide table is wrong. Fix it to **22.6×**, which is still a strong number.
+
+---
+
+## H. Reproduction log
+
+Everything marked **[reproduced]** was re-computed on 2026-09-24 from the repo as committed:
+
+| Check | Command / source |
+|---|---|
+| Reference sequences vs UniProt | `rest.uniprot.org/uniprotkb/{acc}.fasta`, diffed against `data/sequences/proteins.fasta` — all 7 byte-identical |
+| KRAS isoform | P01116 = 189 aa (**4A**); P01116-2 = 188 aa (**4B**); first divergence residue **151** |
+| KRAS/KIT registers | computed from the stored FASTA |
+| VCF coordinates | compared against GRCh38/GRCh37 positions and GRCh38 chromosome lengths |
+| Screen ranking, fold changes | `neofold.screen.PeptideScreen.score()` on the 38 KRAS windows, `HLA-C*08:02` |
+| MHCflurry columns | `Class1PresentationPredictor.predict(..., include_affinity_percentile=True)`, with and without real KRAS flanks |
+| Salt-bridge distances | `neofold.contacts.measure_salt_bridge()` on 6ULN and all four shortlist models |
+| Peptide RMSD | `neofold.validate.peptide_rmsd_vs_reference()` against `results/reference/6ULN.cif` |
+| TCR clonotype | CDR3β extracted from `results/tcr/kras_tcr_ternary_model_0.cif` → `CASSLGQTNYGYTF` = TCR9d |
+| WT ternary confidence | `results/tcr/confidence_kras_tcr_ternary_wt_model_0.json` |
+| MD replicate lengths | `results/md/*.json` |
+| Self-proteome search | `neofold.selfsim.SelfProteome` + independent direct search of `data/reference/human_sp.fasta.gz` (20,431 proteins) |
+
+**Things I could not verify and am not asserting:**
+- The **0.486 Å** MSA-run RMSD and the **0.748 Å** MSA MHC RMSD — no artefact in the repo produces them.
+- The **2.52 Å** predicted salt-bridge distance in BUILD-GUIDE §6D — the repo model gives **2.58 Å**.
+- **TAP quantification** — Peters B, Bulik S, Tampé R, van Endert PM, Holzhütter HG, *J Immunol*
+  2003;171(4):1741–1749, PMID 12902473 is the right citation for TAP prediction, but I could not retrieve
+  the sentence quantifying how much TAP adds on top of binding prediction. Do not quote a figure for it.
+- **Neopepsee** and **antigen.garnish** WT/MT thresholds — not verified; not asserted anywhere above.
+- **Łuksza 2017's typeset amplitude formula** — the semantics (Kd_WT/Kd_MT) are confirmed from multiple
+  secondary descriptions, but PMC served a CAPTCHA, so do not quote a formula on this audit's authority.
+- The **Sim 2020 correction** (*PNAS* 2020;117(44):27743–27744, PMID 33077608) is PDF-only and I could not
+  read it. **Check it before quoting any figure-level number from Sim 2020.**
+
+---
+
+## I. Fix list, in priority order
+
+Tiered by what a judge can catch and how much damage it does.
+
+### Tier 1 — factually wrong, and cheap to fix. Do these first.
+
+| # | Fix | Where |
+|---|---|---|
+| 1 | **Remove or repurpose the KIT D816V case.** `ICDFGLARV` is an exact self peptide (ERK2, NLK). Best move: keep it, wire `selfsim` into the structure panel, and relabel it as a deliberate negative control | `app/main.py` `PAIRS`, `NO_CONTACT_REASON`, structure panel |
+| 2 | **Fix the 35× → 22.6×.** The guide compares a 10-mer mutant to a 9-mer wild-type | `BUILD-GUIDE.md` §6B |
+| 3 | **Fix the per-residue claim.** Deviation is lowest at p2–p3, not "in the middle", and p9 is 0.62–0.67 Å, not 0.52 Å | `BUILD-GUIDE.md` §6A |
+| 4 | **Fix the TCR attribution.** 6ULN's TCR is **TCR9d, patient 3995, Sim PNAS 2020** — not "the patient-derived TCR from Tran NEJM 2016" | `BUILD-GUIDE.md` §6E |
+| 5 | **Pick one RMSD number.** 0.486 / 0.509 / 0.560 all circulate. Use the one the repo reproduces (**0.509 Å**) and name the model file | `README.md`, `BUILD-GUIDE.md` §6A, tests |
+| 6 | **Fix "KRAS 4B".** You load P01116 canonical = **4A**. Say "residues 10–18/10–19, identical in 4A and 4B" | `tests/test_variants.py:14`, `BUILD-GUIDE.md` §5 |
+| 7 | **Fix the KIT VCF coordinate** (GRCh37 in a GRCh38 file) and the 13 out-of-range synthetic rows | `data/demo/*.vcf` |
+| 8 | **Fix the salt-bridge distance** 2.52 → **2.58 Å** | `BUILD-GUIDE.md` §6D |
+| 9 | **Fix the Nibeyro/Buckley author attribution** and the three conflicting allele counts (14,884 / 20,246 / 14,993) | `research/`, `BUILD-GUIDE.md` |
+
+### Tier 2 — overclaims to re-word. No code changes needed.
+
+| # | Re-word | From → To |
+|---|---|---|
+| 10 | **Delete "the model knows recognition is harder."** Your own WT ternary run refutes it. Flip it into a third negative control | `BUILD-GUIDE.md` §6E, `tests/test_tcr.py` |
+| 11 | **"tumour-specific" → "differential agretopicity"** everywhere it describes a fold change. Reserve "tumour-specific" for what `selfsim` tests | `screen.py` tier names + reasons, UI, charts |
+| 12 | **Drop "the normal protein is invisible."** By allele-normalised percentile the WT 10-mer is a **weak binder** (1.055%) | `BUILD-GUIDE.md` §6B |
+| 13 | **"neoantigen"/"neoepitope" → "candidate peptide"** for anything only predicted | UI, `README.md`, pitch |
+| 14 | **"KRAS wild-type — normal tissue" → "KRAS wild-type (germline counterpart)"** | `app/main.py:129` |
+| 15 | **Soften the structure verdicts.** "decisive" is too strong for both the contact and the screen; and the contact is sequence-decidable (§F4) | `app/main.py` `/api/compare` |
+| 16 | **Quote both halves of the MD citation** — 0.80→0.81 random split *and* 0.61→0.80 debiased | `md.py`, `app/main.py`, `BUILD-GUIDE.md` |
+| 17 | **Move the training-data caveat into the README.** Currently only the BUILD-GUIDE admits 6ULN is retrospective | `README.md` |
+| 18 | **Say "predicted to be presented by", not "restricted by"**, for anything you predict | UI, docs |
+
+### Tier 3 — methodology. Worth doing if there is time; worth *saying* either way.
+
+| # | Change | Rationale |
+|---|---|---|
+| 19 | **Use `affinity_percentile`** (one keyword) alongside nM, and report the NetMHCpan-convention call | §A6 — the single highest-value technical change |
+| 20 | **Supply flanks to MHCflurry.** You have them; costs ~3.3% PPV to omit. Never pass `""` | §C3 |
+| 21 | **Cite the 2× threshold or run the sensitivity analysis** at 1×/2×/5×/10× | §C2 — pVACtools ships it off, TESLA's cut is 10× |
+| 22 | **Make MD step-budgeted, not time-budgeted**, so replicates are comparable; report per-replicate values | §E5 |
+| 23 | **Rename "contact persistence" → Q / fnat**, reference it to **6ULN** rather than your own pose, add the switching function | §E2 |
+| 24 | **Cut MD out of the salt-bridge argument entirely.** GB over-stabilises salt bridges by 3–4 kcal/mol at zero ionic strength; the crystal and the prediction already make the point | §E3 |
+| 25 | **Report DockQ** (with fnat) for the TCR interface, and per-residue peptide RMSD for the pMHC | §D1, §D2 |
+| 26 | **Add an expression column**, even if the demo supplies it synthetically | §C6 — the most serious omission |
+| 27 | Fix `hydrogenMass` 4.0 → 3.0 amu; friction 2 → 10 /ps; cutoff 1.8 → 2.0 nm or `NoCutoff`; minimise to convergence | §E3, §E6 |
+| 28 | **Assert sequence identity before index-paired RMSD.** It is valid today by luck, and chain A is already off by one | `validate.py`, `tests/test_tcr.py` |
+| 29 | Make a missing wild-type a distinct tier, not silently "not tumour-specific" (`nan >= 2.0` is `False`) | `screen.py` |
+| 30 | Loop over all six class I alleles, or stop drawing a patient-level funnel from a single-allele run | `pipeline.py`, UI |
+
+### What is genuinely good, and should be defended loudly
+
+Not everything here is a criticism, and the project should not throw away its real strengths under
+questioning:
+
+- **The wrong-allele negative control** and the refusal to rank on Boltz confidence. This is the best thing
+  in the project. Strengthen it with the Boltz-2 authors' own data: **ipTM vs affinity Pearson R = −0.07**
+  (§D3).
+- **The pre-registered contact discipline** — specifying the measurement in advance from a crystal structure,
+  and refusing to measure anything for KIT because the mutation is at p9. That is real methodological
+  hygiene, rare at a hackathon.
+- **The pre-registered ensemble-spread negative result.** Testing your own proposed feature and publishing
+  that it fails is a genuine credibility asset.
+- **`apply_missense`'s reference check.** I tried to break it and could not; all seven sequences are
+  byte-identical to UniProt.
+- **The `UNSUPPORTED` list.** Explicitly naming frameshifts, indels, splice and fusion neoantigens as
+  out of scope is exactly right.
+- **`neofold/selfsim.py`**, including the subtlety that a neoepitope is by construction one mismatch from its
+  own wild-type, so the WT must be excluded from the near-self search. That is a detail most pipelines get
+  wrong. Now make the UI use it.

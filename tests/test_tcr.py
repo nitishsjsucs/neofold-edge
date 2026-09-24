@@ -80,10 +80,34 @@ def test_raw_asymmetric_unit_would_give_a_false_failure():
     assert _rmsd(_atoms(Rr["D"]), _atoms(Pp["D"])) > 20.0
 
 
-def test_tcr_interfaces_are_less_confident_than_the_pmhc_core():
-    """The model knows recognition is the harder problem, and says so."""
-    conf = json.loads((PRED.parent / f"confidence_{PRED.stem}.json").read_text())
-    pc = conf["pair_chains_iptm"]
-    pmhc = pc["0"]["2"]        # HLA <-> peptide
-    tcr = min(pc["3"]["2"], pc["4"]["2"])   # TCR chains <-> peptide
-    assert tcr < pmhc
+def _conf(tag):
+    return json.loads((PRED.parent / f"confidence_{tag}_model_0.json").read_text())
+
+
+def test_tcr_interface_scores_lower_than_the_pmhc_core_in_BOTH_complexes():
+    """This is an observation about the architecture, NOT biological insight.
+
+    We previously read the lower TCR-interface ipTM as "the model knows
+    recognition is the harder problem". Our own wild-type control refutes
+    that: the gap is present for the wild-type peptide too, which TCR9d does
+    not recognise. A property that holds equally for a recognised and an
+    unrecognised complex cannot be evidence about recognition.
+    """
+    for tag in ("kras_tcr_ternary", "kras_tcr_ternary_wt"):
+        pc = _conf(tag)["pair_chains_iptm"]
+        assert min(pc["3"]["2"], pc["4"]["2"]) < pc["0"]["2"], tag
+
+
+def test_confidence_does_not_separate_recognised_from_unrecognised_tcr_complex():
+    """Third negative control for confidence, now at the recognition step.
+
+    TCR9d recognises the G12D neoepitope and not the wild-type. Yet the
+    wild-type complex scores a HIGHER global ipTM, and its TCR-interface
+    scores differ by ~0.013 -- far inside the noise of any useful threshold.
+    """
+    mut, wt = _conf("kras_tcr_ternary"), _conf("kras_tcr_ternary_wt")
+    assert wt["iptm"] > mut["iptm"], (
+        "the unrecognised complex should still score at least as high; if this "
+        "flips, re-check before claiming confidence discriminates")
+    gap = abs(mut["pair_chains_iptm"]["3"]["2"] - wt["pair_chains_iptm"]["3"]["2"])
+    assert gap < 0.05, f"TCR-interface ipTM gap {gap:.3f} is larger than expected"
