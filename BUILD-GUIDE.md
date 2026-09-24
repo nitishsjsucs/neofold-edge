@@ -371,6 +371,35 @@ find ~/neofold -name "*.json" -size 0 -delete
 
 ---
 
+## 6E. Next process: the recognition step (pMHC:TCR)
+
+The pipeline so far answers *"can this peptide be presented?"* It does not answer *"can a T-cell see it?"* Those differ, and the gap is where real pipelines lose nearly everything — TESLA found **37 of 608** predicted neoantigens immunogenic.
+
+**Measured on the Nano.** Full 5-chain, **812-residue** complex: HLA-C\*08:02 + β2m + KRAS G12D peptide + the patient-derived TCR α/β from Tran *NEJM* 2016.
+
+| | Result |
+|---|---|
+| Wall time | **133 s** (against 64 s for 383 residues — 2.1× residues, 2.1× time) |
+| GPU | 95% peak, **42.2 W** |
+| ipTM / pLDDT | 0.9468 / 0.9687 |
+
+**Accuracy vs crystal 6ULN, superposed on the MHC:**
+
+| Chain | CA RMSD |
+|---|---|
+| KRAS peptide | **0.32 Å** |
+| β2-microglobulin | 0.46 Å |
+| **TCR alpha** | **1.42 Å** |
+| **TCR beta** | **1.50 Å** |
+
+Adding 429 residues of TCR did not degrade the pMHC core — the peptide is *more* accurate here than in the pMHC-only run. The model also correctly reports lower confidence at the TCR interfaces (0.88) than the pMHC core (0.99): it knows which part is harder.
+
+> ⚠️ **A trap that nearly produced a false headline.** PDB 6ULN applies **different symmetry operators** to the pMHC chains (A,B,C) and the TCR chains (D,E). Compared against the raw asymmetric-unit coordinates the TCR looks **72 Å misplaced** — a catastrophic-looking failure that is purely an artifact of not building the biological assembly. Always `gemmi.make_assembly` before scoring. A regression test asserts both numbers so the mistake cannot recur silently.
+
+**What this does and does not license.** It shows the Nano can run the recognition-step complex locally at crystal-comparable accuracy. It says **nothing** about immunogenicity: predicting where a *known* TCR docks is not the same as knowing whether a patient's repertoire contains one. And 6ULN is retrospective.
+
+---
+
 ## 7. Recommended stack for the remaining build
 
 | Layer | Choice | Note |

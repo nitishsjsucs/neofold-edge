@@ -200,5 +200,29 @@
     "power_w": 29.3,
     "sm_clock_mhz": 2411,
     "unload": "keep_alive:0 frees the GPU for Boltz in ~3 s"
+  },
+  "ternary_complex": {
+    "_comment": "MEASURED. Full pMHC:TCR recognition complex, the step after presentation.",
+    "case": "KRAS G12D GADGVGKSA / HLA-C*08:02 / patient-derived TCR (Tran NEJM 2016)",
+    "crystal": "6ULN (biological assembly, operators 1 and 2)",
+    "residues": 812,
+    "chains": 5,
+    "wall_s": 133,
+    "gpu_util_peak_pct": 95,
+    "power_peak_w": 42.2,
+    "iptm": 0.9468,
+    "plddt": 0.9687,
+    "ca_rmsd_a": {
+      "peptide": 0.32,
+      "b2m": 0.46,
+      "tcr_alpha": 1.42,
+      "tcr_beta": 1.5
+    },
+    "tcr_com_displacement_a": {
+      "alpha": 1.1,
+      "beta": 1.37
+    },
+    "scaling_note": "812 residues took 133 s against 64 s for 383 -- 2.1x residues, 2.1x time",
+    "caveat": "Retrospective: 6ULN was published in 2020 and may be in Boltz-2's training data. Also, structural accuracy is NOT immunogenicity -- predicting where a known TCR docks says nothing about whether a T-cell repertoire contains one."
   }
 }
