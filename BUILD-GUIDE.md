@@ -16,7 +16,7 @@
 | Do I need the community GB10 fork? | **No.** Stock `pip install boltz==2.2.1` + 4 fixes below. |
 | Do I need sudo? | **No** — I found a no-sudo workaround for the one blocker that needs root. |
 | Can Boltz confidence rank candidates? | **No.** See §6 — this is the single most important finding. |
-| **How accurate is it, really?** | **0.49 Å peptide backbone RMSD** vs crystal structure PDB 6ULN. See §6A. |
+| **How accurate is it, really?** | **0.32–0.51 Å** peptide backbone RMSD vs two crystal structures, two alleles. See §6A. |
 | Does the screen work? | **Yes.** MHCflurry ranks both published KRAS G12D epitopes **#1 and #2 of 38**. See §6B. |
 
 ---
@@ -189,6 +189,13 @@ ipTM is a self-reported score, and §6 shows it is untrustworthy here. So I meas
 
 \* once the MSA is cached; the 132 s run includes the one-time online fetch.
 
+**A second, independent validation.** The CMV epitope `NLVPMVATV` on **HLA-A\*02:01** against crystal **3GSO**: MHC CA **0.33 Å**, peptide backbone **0.321 Å**. Different allele, different deposition, same sub-Ångström result — much harder to dismiss as luck than a single case.
+
+| Case | Crystal | Peptide backbone RMSD |
+|---|---|---|
+| KRAS G12D `GADGVGKSA` / C\*08:02 | 6ULN | **0.509 Å** |
+| CMV `NLVPMVATV` / A\*02:01 | 3GSO | **0.321 Å** |
+
 **Sub-Ångström peptide placement.** For scale, that is within the coordinate uncertainty of many crystal structures. Per-residue deviation is highest at the peptide termini (P1 0.55 Å, P9 0.52 Å) and lowest in the middle — the expected pattern, since the termini are anchored but the crystal has a TCR bound that we do not model.
 
 **Say this honestly:** 6ULN was published in 2020 and may well be in Boltz-2's training data. This is a **retrospective reconstruction**, not a blind prediction. The claim to make is *"our pipeline reconstructs a known complex end-to-end on-device to 0.49 Å in under a minute"* — which is true, verifiable, and still impressive.
@@ -288,6 +295,40 @@ Verdict: **GO**, with a downgraded timescale.
 **Defensible:** "physics immediately rejects this pose." **Not defensible:** any claim about stability, affinity or immunogenicity.
 
 **Kill criterion:** if a calibration run reports under 150 ns/day, cut MD and spend the time on the demo.
+
+---
+
+## 6D. ⚠️ The hardware fault, and the fix
+
+The Nano powered itself off ~11 times during development. Diagnosis, because it cost hours:
+
+**It is a GPU boost-clock fault.** Capping the maximum SM clock at **2,500 MHz** stops it.
+
+```bash
+sudo nvidia-smi -lgc 300,2500      # does NOT survive a reboot -- re-apply after every boot
+sudo nvidia-smi -rgc               # reset
+```
+
+**Evidence trail**, in case it recurs:
+
+| Test | Result |
+|---|---|
+| 20-core CPU stress, 60 s | ✅ survived, 50–53 °C |
+| `nvidia-smi` polling | ✅ survived |
+| Sustained bf16 matmul, **53.4 TFLOPS** | ✅ survived, 42 W |
+| 16 GB unified allocation | ✅ survived |
+| Boltz-2 real workload | ❌ powered off |
+| Boltz with `--no_kernels` | ❌ powered off (so **not** cuEquivariance) |
+
+Never an Xid, thermal event, OOM or kernel panic — journald is persistent, so a panic would have been captured. Temps stayed 34–46 °C. The tell was in the telemetry: the GPU **auto-boosts to 2,522 MHz** at stock settings, just above 2,500. Note also that **GB10 exposes no software power cap** (`Power Limit: N/A`), so clock capping is the only software lever.
+
+Two false leads worth recording so nobody re-runs them: it is *not* cuEquivariance (`--no_kernels` still died), and it is *not* concurrent load from another user (that only happened once, late).
+
+**Also**: a reboot leaves **zero-byte JSON** in Boltz's `records/` cache, and every later run then dies in `Record.load` with a bare `JSONDecodeError`. Always run this before resuming:
+
+```bash
+find ~/neofold -name "*.json" -size 0 -delete
+```
 
 ---
 

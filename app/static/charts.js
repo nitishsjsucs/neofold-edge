@@ -257,12 +257,13 @@ export function drawScaling(container, b, tip){
       'stroke-width': measured ? 0 : 2,
       'stroke-dasharray': measured ? '' : '5 3', style:'cursor:pointer'});
     r.addEventListener('mousemove', ev => tip(ev,
-      `<b>${n.candidates_per_hour} candidates/hour</b>${n.nodes} Nano${n.nodes>1?'s':''}`
+      `<b>${n.candidates_per_hour} candidates/hour</b>${n.label || (n.nodes+' Nano')}`
       + `<i>${measured ? 'measured on hardware' : 'projected from measured single-node throughput'}</i>`));
     r.addEventListener('mouseleave', () => tip(null));
     svg.appendChild(r);
-    svg.appendChild(text(X(i), Y(0)+15, `${n.nodes} node${n.nodes>1?'s':''}`,
-                         {anchor:'middle', size:10}));
+    const lbl = n.label || `${n.nodes} node${n.nodes>1?'s':''}`;
+    lbl.split(', ').forEach((part, k) =>
+      svg.appendChild(text(X(i), Y(0)+15+k*11, part, {anchor:'middle', size:9.5})));
     svg.appendChild(text(X(i), y-6, n.candidates_per_hour,
                          {anchor:'middle', size:11, weight:600,
                           fill: measured ? INK.primary : INK.secondary, mono:true}));

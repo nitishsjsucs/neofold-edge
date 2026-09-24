@@ -27,19 +27,110 @@
     "note": "8192^3 bf16 matmul, sustained over 30 iterations"
   },
   "runs": [
-    {"label": "G-domain crop, single-sequence", "residues": 189, "msa": false, "recycling": 3, "sampling": 200, "wall_s": 44},
-    {"label": "full complex, single-sequence, minimal sampling", "residues": 383, "msa": false, "recycling": 0, "sampling": 10, "wall_s": 39},
-    {"label": "full complex, single-sequence", "residues": 383, "msa": false, "recycling": 3, "sampling": 200, "wall_s": 55},
-    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 63},
-    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 66},
-    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 65},
-    {"label": "full complex, cached MSA", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 62},
-    {"label": "shortlist: KRAS G12D 10-mer mutant", "residues": 384, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 66.1},
-    {"label": "shortlist: KRAS G12D 9-mer mutant", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 66.3},
-    {"label": "shortlist: KRAS wild-type 9-mer", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 61.8},
-    {"label": "offline proof (all egress blocked)", "residues": 383, "msa": true, "recycling": 3, "sampling": 200, "wall_s": 64},
-    {"label": "MSA generated online via ColabFold server", "residues": 383, "msa": "generated", "recycling": 3, "sampling": 200, "wall_s": 132},
-    {"label": "MSA generation, second allele", "residues": 383, "msa": "generated", "recycling": 3, "sampling": 200, "wall_s": 132}
+    {
+      "label": "G-domain crop, single-sequence",
+      "residues": 189,
+      "msa": false,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 44
+    },
+    {
+      "label": "full complex, single-sequence, minimal sampling",
+      "residues": 383,
+      "msa": false,
+      "recycling": 0,
+      "sampling": 10,
+      "wall_s": 39
+    },
+    {
+      "label": "full complex, single-sequence",
+      "residues": 383,
+      "msa": false,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 55
+    },
+    {
+      "label": "full complex, cached MSA",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 63
+    },
+    {
+      "label": "full complex, cached MSA",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 66
+    },
+    {
+      "label": "full complex, cached MSA",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 65
+    },
+    {
+      "label": "full complex, cached MSA",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 62
+    },
+    {
+      "label": "shortlist: KRAS G12D 10-mer mutant",
+      "residues": 384,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 66.1
+    },
+    {
+      "label": "shortlist: KRAS G12D 9-mer mutant",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 66.3
+    },
+    {
+      "label": "shortlist: KRAS wild-type 9-mer",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 61.8
+    },
+    {
+      "label": "offline proof (all egress blocked)",
+      "residues": 383,
+      "msa": true,
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 64
+    },
+    {
+      "label": "MSA generated online via ColabFold server",
+      "residues": 383,
+      "msa": "generated",
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 132
+    },
+    {
+      "label": "MSA generation, second allele",
+      "residues": 383,
+      "msa": "generated",
+      "recycling": 3,
+      "sampling": 200,
+      "wall_s": 132
+    }
   ],
   "stage_split": {
     "_comment": "From progress bars in run logs: the dataloader stage reports inference time separately from total wall time.",
@@ -70,6 +161,44 @@
       "queue and scheduling overhead",
       "storage I/O when writing many structures",
       "sustained thermal/power behaviour over long runs"
-    ]
+    ],
+    "batched_single_node_now_measured": true
+  },
+  "batched": {
+    "_comment": "MEASURED. Five candidates in a single boltz invocation, so the 2.3 GB checkpoint loads once instead of five times.",
+    "n_candidates": 5,
+    "wall_s": 180,
+    "per_candidate_s": 36.0,
+    "candidates_per_hour": 100,
+    "speedup_vs_sequential": 1.79,
+    "sequential_baseline_s": 64.3,
+    "note": "run without a GPU clock cap; boot unchanged, no instability during this run"
+  },
+  "accuracy_validations": [
+    {
+      "case": "KRAS G12D neoepitope GADGVGKSA on HLA-C*08:02",
+      "crystal": "6ULN",
+      "peptide_backbone_rmsd_a": 0.509,
+      "mhc_ca_rmsd_a": 0.878,
+      "msa": "cached"
+    },
+    {
+      "case": "CMV pp65 epitope NLVPMVATV on HLA-A*02:01",
+      "crystal": "3GSO",
+      "peptide_backbone_rmsd_a": 0.321,
+      "mhc_ca_rmsd_a": 0.33,
+      "msa": "generated"
+    }
+  ],
+  "accuracy_note": "Both validations are RETROSPECTIVE: 6ULN (2020) and 3GSO (2009) predate Boltz-2 and may be in its training data. The claim is reconstruction accuracy on device, not blind prediction.",
+  "local_llm": {
+    "model": "qwen3:8b",
+    "backend": "ollama CUDA (cuda_v13)",
+    "placement": "100% GPU",
+    "tokens_per_second": 5.7,
+    "gpu_util_pct": 91,
+    "power_w": 29.3,
+    "sm_clock_mhz": 2411,
+    "unload": "keep_alive:0 frees the GPU for Boltz in ~3 s"
   }
 }

@@ -70,3 +70,27 @@ def test_glycine_makes_the_contact_chemically_impossible():
     assert m.peptide_residue == "GLY1"
     assert not m.possible
     assert "no charged side-chain group" in m.note
+
+
+# --- second, independent accuracy validation on a different allele ---------
+
+CRYSTAL_A0201 = RESULTS / "reference" / "3GSO.cif"
+PRED_A0201 = RESULTS / "shortlist" / "a0201_msa_gen_model_0.cif"
+
+
+@pytest.mark.skipif(not (CRYSTAL_A0201.exists() and PRED_A0201.exists()),
+                    reason="A*02:01 structures not present")
+def test_a0201_prediction_is_sub_angstrom():
+    """A second allele, a second crystal structure, predicted independently.
+
+    One sub-Angstrom result could be luck or a training-set artifact. Two, on
+    different alleles against different depositions, is a much harder claim to
+    wave away -- and both remain retrospective, which we say out loud.
+    """
+    assert peptide_sequence(PRED_A0201) == "NLVPMVATV"
+    r = peptide_rmsd_vs_reference(CRYSTAL_A0201, PRED_A0201,
+                                  ref_mhc="A", ref_peptide="P",
+                                  pred_mhc="A", pred_peptide="C")
+    assert r.peptide_backbone_rmsd < 1.0
+    assert r.peptide_backbone_rmsd == pytest.approx(0.32, abs=0.05)
+    assert r.mhc_rmsd < 1.0

@@ -388,14 +388,25 @@ def benchmark() -> dict:
             "assumptions": d["projections"]["assumptions"],
             "erosion_factors": d["projections"]["erosion_factors"],
             "nodes": [
-                {"nodes": n, "candidates_per_hour": round(3600 / mean * n),
-                 "measured": n == 1}
-                for n in (1, 2, 4)
+                {"nodes": 1, "label": "1 node", "candidates_per_hour": round(3600 / mean),
+                 "measured": True},
+                {"nodes": 1, "label": "1 node, batched",
+                 "candidates_per_hour": d.get("batched", {}).get("candidates_per_hour",
+                                                                 round(3600 / (mean - overhead))),
+                 "measured": "batched" in d},
+                {"nodes": 2, "label": "2 nodes", "candidates_per_hour": round(3600 / mean * 2),
+                 "measured": False},
+                {"nodes": 4, "label": "4 nodes", "candidates_per_hour": round(3600 / mean * 4),
+                 "measured": False},
             ],
             "batched_single_node": {
-                "candidates_per_hour": round(3600 / (mean - overhead)),
-                "note": ("if jobs share one process the ~32 s model load is paid "
-                         "once rather than per candidate -- projected, not measured"),
+                "candidates_per_hour": d.get("batched", {}).get("candidates_per_hour"),
+                "per_candidate_s": d.get("batched", {}).get("per_candidate_s"),
+                "speedup": d.get("batched", {}).get("speedup_vs_sequential"),
+                "measured": "batched" in d,
+                "note": ("MEASURED: five candidates in one boltz invocation took "
+                         "180 s total, i.e. 36 s each against 64.3 s run "
+                         "separately -- the 2.3 GB checkpoint loads once."),
             },
         },
     }
