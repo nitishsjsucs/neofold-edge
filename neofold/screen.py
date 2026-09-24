@@ -165,13 +165,25 @@ MIN_PRESENTATION = 0.10
 MIN_FOLD_CHANGE = 2.0
 
 
-def triage(result: ScreenResult) -> tuple[str, str]:
+def triage(result: ScreenResult, self_match=None) -> tuple[str, str]:
     """Classify a candidate and say why, in plain language.
 
     Returns (tier, reason). Kept as explicit rules rather than a blended score
     so that every row in the UI can explain itself, and so a reviewer can
     disagree with a specific threshold rather than a black box.
+
+    `self_match` is an optional SelfMatch from neofold.selfsim. A peptide that
+    occurs verbatim in the normal human proteome is disqualified regardless of
+    how well it binds: T-cells against it are subject to central tolerance and
+    would be autoreactive. This check is applied FIRST because binding
+    strength is irrelevant if the peptide is not tumour-specific at all.
     """
+    if self_match is not None and self_match.exact_self:
+        return ("self peptide", (
+            f"disqualified: this exact sequence occurs in the normal human "
+            f"proteome ({self_match.nearest_protein}), so it is not a "
+            f"tumour-specific target regardless of predicted binding"))
+
     presentable = (result.presentation_score >= MIN_PRESENTATION
                    and result.affinity_nm <= WEAK_BINDER_NM)
     specific = result.fold_change >= MIN_FOLD_CHANGE
@@ -193,12 +205,16 @@ def triage(result: ScreenResult) -> tuple[str, str]:
             f"neither strongly presented nor tumour-enriched ({result.affinity_nm:.0f} nM)")
 
 
-def rank_for_structure(results: list[ScreenResult], k: int) -> list[ScreenResult]:
+def rank_for_structure(results: list[ScreenResult], k: int,
+                       self_matches: dict | None = None) -> list[ScreenResult]:
     """Pick the candidates that earn a GPU structure prediction.
 
     Only 'investigate' candidates qualify. Binding strength alone is not
     enough: a peptide whose wild-type counterpart binds just as well is not a
-    tumour-specific hypothesis, however good its affinity looks.
+    tumour-specific hypothesis, however good its affinity looks -- and a
+    peptide that IS a normal human peptide is not a target at all.
     """
-    qualified = [r for r in results if triage(r)[0] == "investigate"]
+    sm = self_matches or {}
+    qualified = [r for r in results
+                 if triage(r, sm.get(r.peptide))[0] == "investigate"]
     return qualified[:k]

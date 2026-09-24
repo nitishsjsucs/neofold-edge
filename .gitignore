@@ -6,3 +6,4 @@ models/
 msa_cache/
 out/
 .pytest_cache/
+data/reference/*.fasta

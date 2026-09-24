@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from neofold.pipeline import DISCLAIMER, run_triage
 from neofold.screen import PeptideScreen, triage
+from neofold.selfsim import SelfProteome
 
 ROOT = Path(__file__).resolve().parent.parent
 STATIC = ROOT / "app" / "static"
@@ -29,6 +30,10 @@ app = FastAPI(title="NeoFold Edge", docs_url=None, redoc_url=None, openapi_url=N
 
 _screen = PeptideScreen()
 _cache: dict[str, dict] = {}
+
+# Vendored reviewed human proteome for the self-similarity filter.
+_proteome_path = ROOT / "data" / "reference" / "human_sp.fasta.gz"
+_proteome = SelfProteome(_proteome_path) if _proteome_path.exists() else None
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -97,7 +102,8 @@ def triage_endpoint(payload: dict) -> JSONResponse:
 
     t0 = time.perf_counter()
     report = run_triage(str(vcf_path), str(ROOT / "data/sequences/proteins.fasta"),
-                        allele=allele, top_n=top_n, screen=_screen)
+                        allele=allele, top_n=top_n, screen=_screen,
+                        proteome=_proteome)
     out = report.as_dict()
     out["wall_seconds"] = round(time.perf_counter() - t0, 2)
     out["cached"] = False

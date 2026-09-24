@@ -10,6 +10,7 @@ import time
 from dataclasses import dataclass, field
 
 from neofold.screen import PeptideScreen, ScreenResult, rank_for_structure, triage
+from neofold.selfsim import SelfProteome
 from neofold.variants import Candidate, Variant, build_candidates, read_fasta, variants_from_vcf
 
 DISCLAIMER = (
@@ -26,6 +27,7 @@ class TriageReport:
     candidates: list[Candidate]
     results: list[ScreenResult]
     shortlist: list[ScreenResult]
+    self_matches: dict = field(default_factory=dict)
     timings: dict[str, float] = field(default_factory=dict)
     skipped_variants: list[str] = field(default_factory=list)
 
@@ -35,17 +37,24 @@ class TriageReport:
             "variants": len(self.variants),
             "candidate_peptides": len(self.candidates),
             "scored": len(self.results),
-            "investigate": sum(1 for r in self.results if triage(r)[0] == "investigate"),
+            "self_peptides": sum(1 for r in self.results
+                                 if triage(r, self.self_matches.get(r.peptide))[0] == "self peptide"),
+            "investigate": sum(1 for r in self.results
+                               if triage(r, self.self_matches.get(r.peptide))[0] == "investigate"),
             "shortlist": len(self.shortlist),
         }
 
     def as_dict(self) -> dict:
         rows = []
         for r in self.results:
-            tier, reason = triage(r)
+            sm = self.self_matches.get(r.peptide)
+            tier, reason = triage(r, sm)
             row = r.as_dict()
             row["tier"] = tier
             row["reason"] = reason
+            if sm is not None:
+                row["self_verdict"] = sm.verdict
+                row["self_protein"] = sm.nearest_protein
             rows.append(row)
         return {
             "allele": self.allele,
@@ -64,6 +73,7 @@ def run_triage(
     allele: str,
     top_n: int = 5,
     screen: PeptideScreen | None = None,
+    proteome: SelfProteome | None = None,
 ) -> TriageReport:
     timings: dict[str, float] = {}
 
@@ -91,9 +101,18 @@ def run_triage(
     results = screen.score(candidates, allele)
     timings["screen"] = time.perf_counter() - t0
 
-    shortlist = rank_for_structure(results, top_n)
+    # Self-similarity: exact matches only across the whole set (it is cheap),
+    # which is what disqualifies a candidate outright.
+    self_matches: dict = {}
+    if proteome is not None:
+        t0 = time.perf_counter()
+        for r in results:
+            self_matches[r.peptide] = proteome.check(r.peptide, near=False)
+        timings["self_similarity"] = time.perf_counter() - t0
+
+    shortlist = rank_for_structure(results, top_n, self_matches)
     return TriageReport(
         allele=allele, variants=variants, candidates=candidates,
         results=results, shortlist=shortlist, timings=timings,
-        skipped_variants=skipped,
+        skipped_variants=skipped, self_matches=self_matches,
     )
