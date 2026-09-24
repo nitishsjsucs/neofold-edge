@@ -244,7 +244,24 @@ Always show the wild-type control. It is the difference between "the model gave 
 
 Three additions were proposed on top of the working pipeline. Two are worth building, one is not.
 
-### ❌ Multi-seed Boltz ensembles — do NOT build
+### ❌ Multi-seed Boltz ensembles — TESTED AND REJECTED
+
+**We ran the experiment rather than arguing from architecture.** A 2×2 allele swap: two well-characterised CMV epitopes, each folded on its correct restricting allele and on the wrong one, 5 diffusion samples each (20 structures, 334 s batched).
+
+| Complex | Pairing | Ensemble spread | ipTM |
+|---|---|---|---|
+| `NLVPMVATV` on A\*03:01 | **swapped** | **0.118 Å** | 0.9876 |
+| `NLVPMVATV` on A\*02:01 | cognate | 0.207 Å | 0.9880 |
+| `KLGGALQAK` on A\*02:01 | **swapped** | 0.656 Å | 0.9816 |
+| `KLGGALQAK` on A\*03:01 | cognate | **0.930 Å** | 0.9882 |
+
+**Ranked by self-consistency, the wrong pairing comes first and a correct pairing comes last.** Spread here is not merely uninformative — it is actively misleading. Cognate spread spans 0.207–0.930 Å and swapped spans 0.118–0.656 Å; the ranges overlap almost completely.
+
+All four complexes scored ipTM > 0.98 regardless of whether the pairing was biologically possible, which reproduces the earlier wrong-allele control a third time.
+
+**This is a good slide, not a gap.** "We proposed ensemble consistency, predicted from the architecture that it could not work, tested it with a pre-registered 2×2 design, and confirmed it does not" is a stronger story than a chart that means nothing. Four tests pin the result so the feature cannot be quietly revived.
+
+#### Why it cannot work (the architectural reason, now confirmed)
 
 The idea was to run Boltz several times per candidate and use the spread between predictions as an uncertainty signal. **Reading the Boltz source kills it:**
 

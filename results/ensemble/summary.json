@@ -1,0 +1,42 @@
+[
+  {
+    "name": "ens_a0201_NLV",
+    "kind": "cognate",
+    "label": "NLVPMVATV on A*02:01",
+    "iptm_mean": 0.9879919290542603,
+    "iptm_sd": 0.00039049957618808465,
+    "spread": 0.20671893725889032,
+    "max": 0.3432977997301331,
+    "consistency": "high"
+  },
+  {
+    "name": "ens_a0301_KLG",
+    "kind": "cognate",
+    "label": "KLGGALQAK on A*03:01",
+    "iptm_mean": 0.9882381796836853,
+    "iptm_sd": 0.0008284102621202265,
+    "spread": 0.9300724416677525,
+    "max": 1.9960478247808906,
+    "consistency": "high"
+  },
+  {
+    "name": "ens_a0301_NLV",
+    "kind": "swapped",
+    "label": "NLVPMVATV on A*03:01",
+    "iptm_mean": 0.9875835537910461,
+    "iptm_sd": 0.0004821163990509973,
+    "spread": 0.11800553043454468,
+    "max": 0.13646547092646286,
+    "consistency": "high"
+  },
+  {
+    "name": "ens_a0201_KLG",
+    "kind": "swapped",
+    "label": "KLGGALQAK on A*02:01",
+    "iptm_mean": 0.981608760356903,
+    "iptm_sd": 0.0015644990583950818,
+    "spread": 0.6561418434746888,
+    "max": 1.1323995041061583,
+    "consistency": "high"
+  }
+]
