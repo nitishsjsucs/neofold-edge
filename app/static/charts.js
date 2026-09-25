@@ -713,3 +713,72 @@ export function drawFunnel(container, steps){
   }
   container.appendChild(wrap);
 }
+
+/* ---------------------------------------------------- filter enrichment */
+/* Every triage rule we considered, measured against the 2.72% base rate on
+ * 1,947 peptides with real assay outcomes. 1.0x is the line that matters: a
+ * rule to its left is worse than picking at random.
+ *
+ * Our first shipped filter, DAI >= 2, lands at 0.965x. Drawing it is a better
+ * argument than writing it down, which is why this chart exists. */
+export function drawEnrichment(container, rules, tip){
+  container.innerHTML = '';
+  const rows = rules.filter(r => !/^random/.test(r.rule));
+  if (!rows.length) return;
+
+  const w = container.clientWidth || 380;
+  const rowH = 22, padL = 232, padR = 46, padT = 18;
+  const h = padT + rows.length * rowH + 22;
+  const pw = Math.max(80, w - padL - padR);
+  const hi = Math.max(2.4, ...rows.map(r => r.enrichment)) * 1.04;
+  const X = v => padL + (v / hi) * pw;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+
+  // Everything left of 1.0x is worse than chance. Shade it, so a bar that
+  // ends inside it looks wrong before the label is read.
+  svg.appendChild(el('rect', {x:padL, y:padT - 4, width:X(1) - padL,
+                              height:rows.length * rowH + 4,
+                              fill:STATUS.critical, opacity:.06}));
+  for (const g of [0, 1, 2].filter(g => g <= hi)){
+    svg.appendChild(el('line', {x1:X(g), x2:X(g), y1:padT - 4,
+                                y2:padT + rows.length * rowH,
+                                stroke: g === 1 ? STATUS.critical : INK.grid,
+                                'stroke-width': g === 1 ? 1.5 : 1,
+                                'stroke-dasharray': g === 1 ? '4 3' : '',
+                                opacity: g === 1 ? .85 : .5}));
+    svg.appendChild(text(X(g), h - 8, g === 1 ? '1.0× — random' : `${g}×`,
+                         {anchor:'middle', size:9,
+                          fill: g === 1 ? STATUS.critical : INK.secondary}));
+  }
+
+  rows.forEach((r, i) => {
+    const y = padT + i * rowH;
+    const ours = /^OURS/.test(r.rule);
+    const bad = r.enrichment < 1;
+    const label = r.rule.replace(/^OURS:\s*/, '');
+    const bw = Math.max(1, X(r.enrichment) - padL);
+    const g = el('g', {style:'cursor:pointer'});
+    g.appendChild(el('rect', {x:0, y:y - 2, width:w, height:rowH - 2,
+                              fill: ours ? 'rgba(168,199,250,.07)' : 'transparent'}));
+    g.appendChild(text(padL - 8, y + 12, label,
+                       {anchor:'end', size:10.5,
+                        fill: ours ? INK.primary : bad ? STATUS.critical : INK.secondary,
+                        weight: ours ? 600 : 400}));
+    g.appendChild(el('rect', {x:padL, y:y + 3, width:bw, height:11, rx:2,
+                              fill: bad ? STATUS.critical : ours ? '#a8c7fa' : '#2a78d6',
+                              opacity: bad ? .85 : ours ? 1 : .7}));
+    g.appendChild(text(X(r.enrichment) + 5, y + 12, `${r.enrichment.toFixed(2)}×`,
+                       {size:10, mono:true,
+                        fill: bad ? STATUS.critical : INK.primary, weight:600}));
+    g.addEventListener('mousemove', ev => tip(ev,
+      `<b>${r.enrichment.toFixed(2)}× enrichment</b>${label}`
+      + `<i>keeps ${r.kept.toLocaleString()} of 1,947 and finds ${r.found} of 53 `
+      + `responders — ${(r.recall*100).toFixed(0)}% recall at `
+      + `${(r.precision*100).toFixed(1)}% precision`
+      + `${bad ? '. WORSE THAN RANDOM.' : ''}</i>`));
+    g.addEventListener('mouseleave', () => tip(null));
+    svg.appendChild(g);
+  });
+  container.appendChild(svg);
+}

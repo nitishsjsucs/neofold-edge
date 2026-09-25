@@ -14,6 +14,16 @@ document rather than a measurement it is marked as such.
 | AlphaFold DB pLDDT band 4 — Very low (<50) | **`#FF7D45`** (`rgb(255,125,69)`) | live DOM |
 | Same four values, independently, in Mol\* source | `0x0053d6 / 0x65cbf3 / 0xffdb13 / 0xff7d45` | `molstar/…/plddt.ts` |
 | Mol\* "No Score" colour | `0xaaaaaa` | `plddt.ts` |
+| **`#0053D6` ("very high") contrast on white** | **6.55 : 1** — the most prominent band | computed |
+| **`#0053D6` contrast on our `#0d1117`** | **2.84 : 1 — fails the 3 : 1 graphics floor** | computed |
+| `#FFDB13` ("low") contrast on our `#0d1117` | **13.62 : 1** — the *brightest* band | computed |
+| Dense scientific table: row height ÷ font size | **1.7–1.9×** (generalist dashboards 2.4–2.6×) | 11 tools measured |
+| **Our** candidate table ratio | **9.8×** (122 px row / 12.5 px font) | live DOM |
+| Mol\* 3D canvas clear colour | `#000000` (`gl.COLOR_CLEAR_VALUE` = `[0,0,0,1]`) | live WebGL |
+| Grafana chart content background | `rgba(0,0,0,0)` — drawn straight onto the panel | live DOM |
+| Inter's default figures | **proportional**, digit-width spread 24 % of em | rasterised |
+| IBM Plex Sans / Lato / Roboto / Helvetica figures | **tabular by default**, spread 0 | rasterised |
+| `CSS.supports('text-align', '"."')` in Chrome 152 | **`false`** — decimal alignment does not exist | tested |
 | AlphaFold DB PAE ramp | **ColorBrewer `Greens`**, `#00441B` (0 Å) → `#F7FCF5` (30 Å) | sampled from `horizontal_colorbar.png` |
 | PAE colour bar is displayed **flipped** | `transform: matrix(-1,0,0,-1,0,0)` | live DOM |
 | AlphaFold DB body font | **`"IBM Plex Sans", Helvetica, Arial, sans-serif`** @ 16px | live DOM |

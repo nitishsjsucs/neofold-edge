@@ -365,6 +365,9 @@
             <span><i style="background:#d03b3b;border-radius:0;height:2px"></i>base rate</span>
           </div>
           <div id="valTable"></div>
+          <div class="subh" style="margin-top:18px">Every triage rule we considered</div>
+          <div id="enrich"></div>
+          <div class="hint" id="enrichNote" style="padding:6px 0 0"></div>
           <div class="hint" id="valNote" style="padding:10px 0 0"></div>
         </div>
       </div>
@@ -460,7 +463,8 @@
 <script type="module">
 import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces, drawPrecisionAtK,
          drawRoc, drawConfidenceVsError, drawPeptideTrack, drawIptmBand,
-         drawPlddtDistribution, drawFunnel, PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=12';
+         drawPlddtDistribution, drawFunnel, drawEnrichment,
+         PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=13';
 
 const $ = s => document.querySelector(s);
 
@@ -925,6 +929,26 @@ async function run(){
         {label:'TESLA 2020',       colour:'#1baf7a', points:te},
       ], v.tesla.base_rate, tip); };
       drawPk(); redraws.push(drawPk);
+
+      if (v.rules){
+        const drawEn = () => { if (!$('#pane-val').hidden)
+          drawEnrichment($('#enrich'), v.rules, tip); };
+        drawEn(); redraws.push(drawEn);
+        const worst = v.rules.filter(r => r.enrichment < 1)
+                             .sort((a,b) => a.enrichment - b.enrichment)[0];
+        $('#enrichNote').innerHTML =
+          `Enrichment is precision divided by the 2.72% base rate, so <b>1.0× is
+           random</b>. Our rule is deliberately loose — 1.31×, lower than a 50 nM cut —
+           because it keeps <b>92.5% of responders</b> against 62.3%. A triage stage
+           should be recall-first: a candidate discarded here can never be recovered by
+           any downstream evidence. Precision comes from ranking, which is what the
+           chart above measures.`
+          + (worst ? `<br><br><b>And one of these failed.</b>
+             <span style="color:var(--bad)">${worst.rule}</span> scores
+             <b style="color:var(--bad)">${worst.enrichment.toFixed(2)}×</b> — worse than
+             picking at random. We shipped it. The threshold was invented rather than
+             cited, and the measurement says it was a coin flip with extra steps.` : '');
+      }
 
       const rows = [
         ['our presentation score', v.auc.auc_overall.presentation_score, tAuc],
