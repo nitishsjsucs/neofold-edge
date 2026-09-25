@@ -102,6 +102,10 @@ flowchart TB
         e1["Tumour + normal<br/>sequencing data"] --> e2["Inference<br/><i>on the institution's<br/>own device, air-gapped</i>"]
         e2 --> e3["Shortlist"]
     end
+    classDef bad fill:#fbe3da,stroke:#d85a30,color:#4a1b0c
+    classDef good fill:#d6f2e6,stroke:#1d9e75,color:#04342c
+    class c1,c2,c3,c4,c5,c6,c7,c8 bad
+    class e1,e2,e3 good
     style CLOUD fill:#fdf4f0,stroke:#d85a30,color:#4a1b0c
     style EDGE fill:#f2faf7,stroke:#1d9e75,color:#04342c
 ```
@@ -346,6 +350,10 @@ flowchart LR
     B["Boltz-2<br/>383 residues · 64 s"] --> gpu
     O["OpenMM<br/>4 fs HMR"] --> gpu
     L["qwen3:8b<br/>100% GPU"] --> gpu
+    classDef hw fill:#e2e0fb,stroke:#7f77dd,color:#26215c
+    classDef job fill:#e8e8e6,stroke:#888780,color:#2c2c2a
+    class cpu,mem,gpu hw
+    class S,B,O,L job
     style N fill:#f6f5fe,stroke:#7f77dd,color:#26215c
 ```
 
@@ -369,6 +377,7 @@ flowchart LR
 ```mermaid
 flowchart LR
     Q["Work queue<br/><i>candidates are<br/>independent jobs</i>"]
+    style Q fill:#e8e8e6,stroke:#888780,color:#2c2c2a
     Q --> N1["Nano 1<br/><b>100/hr</b><br/>measured"]
     Q -.-> N2["Nano 2<br/>~200/hr<br/><i>projection</i>"]
     Q -.-> N4["Nano 4<br/>~400/hr<br/><i>projection</i>"]
