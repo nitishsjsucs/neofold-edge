@@ -218,6 +218,14 @@
   details.more{margin:0 16px 12px;font-size:12px;color:var(--muted)}
   details.more summary{cursor:pointer;color:var(--accent);font-size:12px;padding:4px 0}
   details.more[open] summary{margin-bottom:6px}
+  /* Figure mode (?figure=...): isolate one panel for documentation capture.
+     Screenshotting a scrolled page is unreliable headless and crops badly in a
+     README; isolating the panel gives a tight figure at its natural width. */
+  body.fig header,body.fig .col-left{display:none}
+  body.fig main{grid-template-columns:1fr;padding:0;max-width:none}
+  body.fig .card{border-radius:0;border-left:0;border-right:0;border-top:0}
+  body.fig .card+.card{margin-top:0}
+  body.fig [data-fig-hide]{display:none}
   @media(max-width:1100px){
     main{grid-template-columns:1fr}
     .col-left{position:static}
@@ -832,6 +840,12 @@ async function run(){
   }finally{ btn.disabled=false; btn.textContent='Run triage'; }
 }
 
+/* Deep links. `?run=1` runs triage on load, `?tab=` opens an evidence tab and
+ * `?structure=` selects a structure -- so a demo can be set up in advance
+ * rather than clicked together on stage, and so the README screenshots are
+ * reproducible from a URL instead of hand-driven. */
+const PARAMS = new URLSearchParams(location.search);
+
 (async function(){
   await initViewer();
 
@@ -1102,6 +1116,35 @@ async function run(){
   refreshNet(); refreshGpu();
   setInterval(refreshGpu, 2000);
   $('#run').onclick = run;
+
+  if (PARAMS.has('allele')) $('#al').value = PARAMS.get('allele');
+  if (PARAMS.has('structure')) await show(PARAMS.get('structure'));
+  if (PARAMS.get('run') === '1') await run();
+  if (PARAMS.has('tab')){
+    const b = document.querySelector(`#evTabs button[data-pane="${PARAMS.get('tab')}"]`);
+    if (b) b.click();
+  }
+  const fig = PARAMS.get('figure');
+  if (fig){
+    document.body.classList.add('fig');
+    const keep = {evidence:['#evidenceCard'],
+                  structure:['#detailCard', '.col-right > .card:nth-of-type(2)'],
+                  candidates:['#landscapeCard']}[fig] || [`#${fig}`];
+    document.querySelectorAll('.col-right > .card').forEach(c => {
+      if (!keep.some(k => c.matches(k))) c.setAttribute('data-fig-hide', '');
+    });
+    if (fig === 'candidates'){            // the master column IS the figure here
+      const L = document.querySelector('.col-left');
+      // Inline `display:''` only clears the inline rule, leaving body.fig's
+      // `display:none` in force -- it has to be set to a real value.
+      L.style.cssText = 'display:block;position:static;max-height:none;overflow:visible';
+      document.querySelector('.col-right').style.display = 'none';
+      document.querySelector('main').style.gridTemplateColumns = '1fr';
+    }
+    redrawAll();
+  }
+  // A signal the screenshot harness can wait on instead of guessing a delay.
+  document.body.dataset.ready = '1';
 })();
 </script>
 </body>
