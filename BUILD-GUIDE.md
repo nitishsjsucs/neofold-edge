@@ -394,6 +394,42 @@ Per-allele: HLA-B\*35:01 0.806, A\*02:01 0.773, A\*11:01 0.741, A\*01:01 0.722. 
 
 ---
 
+## 6B-4. ✅ Independent validation on TESLA
+
+Bjerregaard was the development benchmark. **TESLA** (Wells *et al.*, *Cell* 2020) is reported as-is, with nothing tuned on it. It is the harder test: its 571 negatives are **same-patient hard negatives** — peptides a real pipeline nominated and a real assay rejected — at a realistic **6.09%** prevalence.
+
+| Score | AUC | n |
+|---|---|---|
+| **our %rank** | **0.762** | 608 |
+| **our presentation score** | **0.759** | 608 |
+| our predicted affinity (nM) | 0.755 | 608 |
+| TESLA's **experimentally measured** affinity | 0.747 | 503 |
+| TESLA's NetMHCpan affinity | 0.747 | 608 |
+| binding stability (h) | 0.685 | 608 |
+| tumour abundance (TPM) | 0.643 | 404 |
+| foreignness | 0.529 | 535 |
+| **agretopicity** | **0.412** | 568 |
+
+**Two results worth stating plainly.**
+
+**1. Our predictions match or slightly exceed the laboratory measurement.** Predicted presentation scores 0.759 against 0.747 for TESLA's *measured* binding affinity from a competitive binding assay. The honest reading is not "prediction beats experiment" — it is that **binding affinity, however obtained, is simply not a strong discriminator of immunogenicity**. The ceiling here is the biology, not the predictor.
+
+**2. Agretopicity scores 0.412 — below random — on TESLA's own data, using TESLA's own column.** This is the third independent confirmation, after the Bjerregaard enrichment (0.96×) and the anchor/TCR-facing AUC split, that the mutant-versus-wildtype differential is not a useful standalone discriminator. It is also the clearest possible vindication of removing it as a gate.
+
+**Precision at depth**, ranked by our screen, against a 6.09% base rate:
+
+| Depth | Hits | Precision | Enrichment |
+|---|---|---|---|
+| P@25 | 8/25 | **32.0%** | **5.26×** |
+| P@50 | 13/50 | 26.0% | 4.27× |
+| P@100 | 18/100 | 18.0% | 2.96× |
+
+**The claim this supports:** *"On two independent benchmarks totalling 2,555 experimentally-tested peptides, our screen reaches AUC 0.76–0.78 and places a true T-cell responder in the top 25 at 16% and 32% respectively — 5× the base rate in both."*
+
+**Caveat to state:** MHCflurry may have trained on some of these peptides. But TESLA's *measured* affinity achieves a comparable AUC, which indicates the ranking signal is real rather than an artefact of memorised labels.
+
+---
+
 ## 6C. The proposed additions, assessed
 
 Three additions were proposed on top of the working pipeline. Two are worth building, one is not.

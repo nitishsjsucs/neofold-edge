@@ -1,0 +1,75 @@
+{
+  "benchmark": "TESLA, Wells et al. Cell 2020",
+  "n_scored": 608,
+  "n_immunogenic": 37,
+  "base_rate": 0.06086,
+  "auc": {
+    "OUR presentation score": {
+      "auc": 0.7592,
+      "n": 608,
+      "positives": 37
+    },
+    "OUR predicted affinity (nM)": {
+      "auc": 0.7547,
+      "n": 608,
+      "positives": 37
+    },
+    "OUR %rank": {
+      "auc": 0.7624,
+      "n": 608,
+      "positives": 37
+    },
+    "TESLA: MEASURED affinity (nM)": {
+      "auc": 0.7473,
+      "n": 503,
+      "positives": 30
+    },
+    "TESLA: NetMHCpan affinity (nM)": {
+      "auc": 0.7473,
+      "n": 608,
+      "positives": 37
+    },
+    "TESLA: tumour abundance (TPM)": {
+      "auc": 0.6428,
+      "n": 404,
+      "positives": 29
+    },
+    "TESLA: binding stability (h)": {
+      "auc": 0.6855,
+      "n": 608,
+      "positives": 37
+    },
+    "TESLA: agretopicity (lower=better)": {
+      "auc": 0.4117,
+      "n": 568,
+      "positives": 37
+    },
+    "TESLA: foreignness": {
+      "auc": 0.5293,
+      "n": 535,
+      "positives": 36
+    }
+  },
+  "precision_at_k": {
+    "10": {
+      "hits": 1,
+      "precision": 0.1,
+      "enrichment": 1.64
+    },
+    "25": {
+      "hits": 8,
+      "precision": 0.32,
+      "enrichment": 5.26
+    },
+    "50": {
+      "hits": 13,
+      "precision": 0.26,
+      "enrichment": 4.27
+    },
+    "100": {
+      "hits": 18,
+      "precision": 0.18,
+      "enrichment": 2.96
+    }
+  }
+}
