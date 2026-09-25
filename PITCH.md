@@ -7,7 +7,9 @@
 
 ## The strategic choice
 
-Almost every team will show something that *looks* impressive. Very few will be able to say **how often their thing is wrong**. That is our differentiator, and the whole pitch should lean on it.
+**Open with Rosie.** It is a true story, it is six months old, it takes thirty seconds, and it does three jobs at once: it explains what a neoantigen vaccine *is* without jargon, it proves the demand is real, and it sets up the edge argument — because the one thing in that story you cannot do for a human patient is put the genome in someone else's cloud.
+
+Then: almost every team will show something that *looks* impressive. Very few will be able to say **how often their thing is wrong**. That is our differentiator, and the rest of the pitch should lean on it.
 
 We have three measured numbers nobody can wave away:
 
@@ -23,23 +25,27 @@ And four things we got **wrong and fixed** — of twelve we found and wrote down
 
 ## The 4-minute script
 
-### 0:00 — Hook (20 s)
+### 0:00 — Hook · Rosie (30 s)
 
-> "Cancer mutations create peptides the immune system can, in principle, see. Finding which ones is a prediction problem — and most predictions are wrong. In the largest prospective test ever run, 608 carefully-chosen candidates were tested in the lab and **37 worked**. Six percent.
+*(Screen: the app, already loaded, network badge visible. Say this without slides.)*
+
+> "Last December a dog in Australia named Rosie got an injection her owner designed himself.
 >
-> So the question for any tool in this space isn't 'does it produce an answer'. It's 'how wrong is it, and do you know?'"
-
-*(Screen: the app, already loaded, network badge visible.)*
-
-### 0:20 — The edge argument (20 s)
-
-> "This runs entirely on one HP ZGX Nano. No cloud, no API calls — and not because it's a gimmick. Tumour genomes are re-identifiable. Keeping them inside the building removes a data-use agreement, not just a network hop.
+> Rosie had a tennis-ball-sized tumour on her leg and chemo wasn't shrinking it. Her owner is a **machine learning engineer with no biology background at all.** He paid to have her tumour sequenced, used ChatGPT and AlphaFold to work out which mutations mattered, and — with biologists at a university — built her a personalised cancer vaccine. By March her biggest tumour was down about **75%**.
 >
-> We rehearsed it with every outbound connection blocked. Everything you're about to see ran with the network dead."
+> That's remarkable. It's also completely unrepeatable, because it needed a genomics centre, an RNA institute, months of expert time, and a cloud service you can't legally send a *human* patient's genome to.
+>
+> **We built the analysis step of that story into one box that never connects to the internet.**"
+
+### 0:30 — Why it must be local (15 s)
+
+> "A genome isn't a file, it's an identity — and it identifies your siblings and your children too. The moment it leaves the hospital it stops being a computation and becomes a regulated disclosure: data use certification, access committee, signing official. **Weeks.**
+>
+> Running it here doesn't satisfy that process faster. It deletes the step. Everything you're about to see ran with the network dead."
 
 *(Point at the "No external calls (0)" badge.)*
 
-### 0:40 — The funnel, live (45 s)
+### 0:45 — The funnel, live (40 s)
 
 *(Click **Run triage**. It takes ~9 s — talk through it.)*
 
@@ -111,14 +117,19 @@ And four things we got **wrong and fixed** — of twelve we found and wrote down
 
 | When | Action | Fallback if it fails |
 |---|---|---|
-| Before | Start app, wait 25 s for warm-up | — |
+| Before | Start app at `?run=1`, wait 25 s for warm-up | — |
 | Before | `sudo nvidia-smi -lgc 0,2450` on the Nano | — |
-| 0:40 | Click **Run triage** | Results are cached — re-click |
+| 0:45 | Click **Run triage** | Results are cached — re-click |
 | 1:25 | Rotate the 3D structure | It's a static file; cannot fail |
 | 1:50 | Switch to wild-type tab | Static file |
 | 2:25 | **Does the screen work?** tab | Static JSON |
 | 3:00 | **Is the structure right?** tab | Static JSON |
 | 3:20 | **Throughput** tab | Static JSON |
+
+The app takes deep links, so a view can be loaded rather than clicked to:
+`?run=1` runs triage on load, `?tab=pane-holdout` opens an evidence tab,
+`?structure=kras_g12d_9mer_wt_model_0` selects a structure. Worth pre-opening
+tabs in a second window as a fallback.
 
 **Do not** run a live Boltz prediction on stage. It takes 64 s of silence and the machine has a power fault. The structures are precomputed; say so if asked — *"this was predicted on this machine this morning, in 64 seconds."*
 
@@ -152,6 +163,12 @@ At the top 25 we're right about 16–32% of the time against a base rate of 2.7�
 
 **"Why not just use the cloud?"**
 Not cost — moving a whole-exome pair costs about five dollars. It's governance: local compute removes a data-use agreement and an institutional certification step rather than merely satisfying one. Also, note that the machine has no internet during this demo.
+
+**"Rosie's owner used the cloud and it worked fine."**
+For a dog, yes — and that's the point. Animal genomes aren't controlled-access human data. The moment you run the same workflow on a person, ChatGPT and AlphaFold Server become an external processor holding an identifiable genome, and you need a data use certification, an access committee and a signing official before you upload anything. That's the step we delete.
+
+**"Are you claiming AI cured that dog?"**
+No, and neither should anyone else. One dog, not a controlled study, mast cell tumours behave unpredictably, and she got the vaccine alongside a checkpoint inhibitor — so you can't cleanly attribute the response. What the case proves is that the *workflow* is now within reach of someone outside the field. That's what deserves better tooling.
 
 **"Isn't 1.41 Å just memorisation?"**
 That number is specifically the held-out figure. Everything deposited after the model's June 2023 training cutoff. Our memorised-set number is 0.42 Å, and we quote the worse one.
