@@ -203,7 +203,7 @@
   },
   "ternary_complex": {
     "_comment": "MEASURED. Full pMHC:TCR recognition complex, the step after presentation.",
-    "case": "KRAS G12D GADGVGKSA / HLA-C*08:02 / patient-derived TCR (Tran NEJM 2016)",
+    "case": "KRAS G12D GADGVGKSA / HLA-C*08:02 / TCR9d from patient 3995 (Sim et al., PNAS 2020; NOT Tran NEJM 2016, which reported the TIL therapy and the epitopes but not this receptor)",
     "crystal": "6ULN (biological assembly, operators 1 and 2)",
     "residues": 812,
     "chains": 5,
