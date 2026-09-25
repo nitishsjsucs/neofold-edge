@@ -6,116 +6,222 @@
 <title>NeoFold Edge</title>
 <link rel="stylesheet" href="/static/vendor/molstar.css">
 <style>
+  /* Surfaces follow AlphaFold Server, which is DeepMind's own dark structural-
+     biology product: NEUTRAL grey rather than blue-black, hairlines as alpha
+     white rather than a solid hex, and a DESATURATED accent. A saturated blue
+     accent on a blue-black ground competes with the data, and in this app the
+     data is mostly blue. */
   :root{
-    --bg:#0d1117; --panel:#161b22; --panel-2:#1c2128; --line:#30363d;
-    --text:#e6edf3; --muted:#8b949e; --accent:#58a6ff;
-    --good:#3fb950; --warn:#d29922; --bad:#f85149; --chip:#21262d;
+    --bg:#131314; --panel:#1b1b1b; --sunken:#0f1012; --raised:#232324;
+    --line:rgba(255,255,255,.10); --line-solid:#37383a; --divider:#444746;
+    --text:#f6f6f6; --muted:#9aa0a6; --faint:#77797c;
+    --accent:#a8c7fa; --accent-ink:#0b1c33;
+    --good:#0ca30c; --warn:#fab219; --bad:#d03b3b; --serious:#ec835a;
+    --pep:#ffa657;
+    /* AlphaFold's pLDDT bands. Same values molstar paints the cartoon with. */
+    --vhigh:#0053D6; --high:#65CBF3; --low:#FFDB13; --vlow:#FF7D45;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
-       font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif}
-  header{display:flex;align-items:center;gap:16px;padding:12px 20px;
+       font:13px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+       -webkit-font-smoothing:antialiased}
+
+  /* ---- type scale. Sentence case throughout, mirroring AlphaFold DB (19/500)
+     and RCSB (18/500). Exactly ONE class is allowed to uppercase, and it may
+     never touch scientific notation: `nM` is nanomolar, `NM` is not a unit,
+     and the lower-case prefixes in pLDDT / ipTM / pTM carry the meaning. */
+  .eyebrow{font-size:10.5px;font-weight:600;letter-spacing:.05em;
+           text-transform:uppercase;color:var(--faint)}
+
+  header{display:flex;align-items:center;gap:14px;padding:11px 20px;
          border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
   .brand{font-weight:650;font-size:16px;letter-spacing:-.01em}
   .brand span{color:var(--accent)}
   .badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
-         background:var(--chip);border:1px solid var(--line);font-size:12px;color:var(--muted)}
-  .badge.ok{color:var(--good);border-color:#23482f}
-  .dot{width:7px;height:7px;border-radius:50%;background:currentColor}
-  .disclaimer{margin-left:auto;font-size:12px;color:var(--warn);max-width:520px;text-align:right}
+         background:var(--raised);border:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+  .badge.ok{color:#7ee787;border-color:rgba(126,231,135,.25)}
+  .dot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  /* A standing caveat belongs in the quiet register: every reference tool in
+     the field keeps these small and linked, not shouting in the status bar. */
+  .disclaimer{margin-left:auto;font-size:11.5px;color:var(--faint);max-width:460px;
+              text-align:right;line-height:1.45}
+  .disclaimer b{color:var(--warn);font-weight:600}
 
-  main{display:grid;grid-template-columns:minmax(420px,1.1fr) minmax(420px,1fr);
-       gap:14px;padding:14px;align-items:start}
+  /* RCSB gives the DETAIL side two-thirds. We had it backwards. */
+  main{display:grid;grid-template-columns:minmax(360px,2fr) minmax(520px,3fr);
+       gap:14px;padding:14px;align-items:start;max-width:1720px;margin:0 auto}
+  /* The master column is a single scrollable panel pinned beside the detail
+     column, rather than a sticky block taller than the viewport -- which pins
+     its top and puts the candidate table permanently out of reach. One
+     scrollbar for the whole column; the table header sticks to the top of it. */
+  .col-left{position:sticky;top:14px;max-height:calc(100vh - 28px);
+            overflow-y:auto;overscroll-behavior:contain;
+            scrollbar-width:thin;scrollbar-color:var(--line-solid) transparent}
+  .col-left::-webkit-scrollbar{width:8px}
+  .col-left::-webkit-scrollbar-track{background:transparent}
+  .col-left::-webkit-scrollbar-thumb{background:var(--line-solid);border-radius:4px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
-  .card h2{margin:0;padding:11px 14px;font-size:13px;font-weight:600;color:var(--muted);
-           border-bottom:1px solid var(--line);text-transform:uppercase;letter-spacing:.06em}
-  .body{padding:14px}
+  .card + .card{margin-top:14px}
+  .card h2{margin:0;padding:12px 16px;font-size:15px;font-weight:600;color:var(--text);
+           border-bottom:1px solid var(--line);letter-spacing:-.005em;
+           display:flex;align-items:baseline;gap:10px}
+  .card h2 small{font-size:11.5px;font-weight:400;color:var(--faint);margin-left:auto}
+  .body{padding:14px 16px}
+  .subh{font-size:12.5px;font-weight:600;color:var(--muted);margin:2px 0 8px}
 
   .controls{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
-  label{display:block;font-size:11px;color:var(--muted);margin-bottom:5px;
-        text-transform:uppercase;letter-spacing:.05em}
-  select,button{font:inherit;background:var(--panel-2);color:var(--text);
-                border:1px solid var(--line);border-radius:7px;padding:8px 11px}
-  button{background:var(--accent);color:#04121f;font-weight:600;cursor:pointer;border-color:transparent}
-  button:hover:not(:disabled){filter:brightness(1.1)}
+  label{display:block;font-size:11.5px;color:var(--muted);margin-bottom:5px}
+  select,button{font:inherit;background:var(--raised);color:var(--text);
+                border:1px solid var(--line);border-radius:7px;padding:7px 11px}
+  select:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+  button.go{background:var(--accent);color:var(--accent-ink);font-weight:600;
+            cursor:pointer;border-color:transparent}
+  button.go:hover:not(:disabled){filter:brightness(1.08)}
   button:disabled{opacity:.5;cursor:not-allowed}
 
-  .funnel{display:flex;gap:8px;margin:16px 0 4px;flex-wrap:wrap}
-  .step{flex:1;min-width:88px;background:var(--panel-2);border:1px solid var(--line);
-        border-radius:8px;padding:10px 12px}
-  .step .n{font-size:21px;font-weight:650;font-family:var(--mono);letter-spacing:-.02em}
-  .step .l{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:2px}
-  .step.final .n{color:var(--good)}
-
+  /* ---- candidate table. 122px rows are not a table; the prose that caused
+     them belongs in the detail panel, where there is room for it. */
   table{width:100%;border-collapse:collapse;font-size:12.5px}
-  th{text-align:left;padding:7px 9px;color:var(--muted);font-weight:600;font-size:10.5px;
-     text-transform:uppercase;letter-spacing:.05em;border-bottom:1px solid var(--line);
-     position:sticky;top:0;background:var(--panel)}
-  td{padding:7px 9px;border-bottom:1px solid #21262d;vertical-align:top}
+  th{text-align:left;padding:7px 10px;color:var(--muted);font-weight:600;font-size:11.5px;
+     border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);
+     white-space:nowrap;z-index:2}
+  th.sortable{cursor:pointer;user-select:none}
+  th.sortable:hover{color:var(--text)}
+  th .arrow{opacity:.35;font-size:9px;margin-left:3px}
+  th.on{color:var(--text)} th.on .arrow{opacity:1;color:var(--accent)}
+  /* 24px of right padding reserves room for hover affordances so text never
+     reflows when they appear (Benchling's `12px 24px 12px 14px`). */
+  td{padding:6px 14px 6px 10px;border-bottom:1px solid rgba(255,255,255,.055);
+     vertical-align:middle;white-space:nowrap;color:var(--muted)}
+  /* Identity column marked by ink strength, not weight. */
+  td:first-child{color:var(--text)}
   tr.row{cursor:pointer}
-  tr.row:hover{background:var(--panel-2)}
-  tr.row.sel{background:#132b47}
+  tr.row:hover{background:rgba(255,255,255,.035)}
+  /* A full-bleed blue fill fights the tier pills inside the row; an accent
+     edge marks the selection without repainting it. */
+  tr.row.sel{background:rgba(168,199,250,.07)}
+  tr.row.sel td:first-child{box-shadow:inset 3px 0 0 var(--accent)}
   .mono{font-family:var(--mono)}
-  .num{text-align:right;font-family:var(--mono)}
-  .tier{display:inline-block;padding:2px 7px;border-radius:5px;font-size:10.5px;font-weight:600;white-space:nowrap}
-  .t-investigate{background:#0f3d23;color:var(--good)}
-  .t-not{background:#4a2c12;color:var(--warn)}
-  .t-weak{background:#2d2a15;color:#c9b458}
-  .t-dep{background:#22262c;color:var(--muted)}
-  .t-self{background:#3d1f2b;color:#f0879b}
-  .step.cut .n{color:var(--bad)}
-  .reason{color:var(--muted);font-size:11.5px;max-width:340px}
-  .scroll{max-height:380px;overflow:auto}
+  .num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  /* Affinity spans four orders of magnitude in one column; a log bar behind
+     the digits is the cheapest way to make that legible at a glance. */
+  .barcell{position:relative}
+  .barcell .bar{position:absolute;right:0;top:3px;bottom:3px;border-radius:2px;
+                background:rgba(168,199,250,.16);pointer-events:none}
+  .barcell span{position:relative}
+  .tier{display:inline-block;padding:1px 7px;border-radius:5px;font-size:11px;
+        font-weight:600;white-space:nowrap}
+  .t-investigate{background:rgba(12,163,12,.16);color:#6fd66f}
+  .t-not{background:rgba(250,178,25,.15);color:var(--warn)}
+  .t-weak{background:rgba(236,131,90,.15);color:var(--serious)}
+  .t-dep{background:rgba(255,255,255,.06);color:var(--faint)}
+  .t-self{background:rgba(208,59,59,.16);color:#f0879b}
+  .site{font-size:11px;color:var(--muted)}
+  .site.anchor{color:var(--warn)}
+  .scroll{overflow:visible}
+  .tablefoot{display:flex;gap:10px;align-items:baseline;padding:8px 16px;
+             border-top:1px solid var(--line);font-size:11.5px;color:var(--faint)}
 
-  #viewer{position:relative;width:100%;height:430px;background:var(--bg)}
-  /* MolViewSpec creates a snapshot timeline we never use; it just adds clutter. */
+  /* ---- selected-candidate detail: where the prose moved to. */
+  .detail .track{padding:2px 0 10px}
+  .detail .prose{font-size:12.5px;color:var(--muted);line-height:1.6}
+  .flagrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .flag{font-size:11.5px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);
+        background:var(--raised);color:var(--muted)}
+  .flag b{color:var(--text);font-weight:600}
+  .flag.warn{border-color:rgba(250,178,25,.3);background:rgba(250,178,25,.08)}
+  .flag.bad{border-color:rgba(208,59,59,.3);background:rgba(208,59,59,.08)}
+
+  #viewer{position:relative;width:100%;height:440px;background:var(--sunken)}
+  /* Mol* ships a LIGHT chrome by default (#EEECE7, the same one AlphaFold DB
+     uses). On a dark page that reads as a blown-out white panel behind the
+     canvas, so override the wrapper as well as the renderer clear colour. */
+  #viewer .msp-plugin,#viewer .msp-plugin-content,#viewer .msp-viewport{
+    background:var(--sunken)!important}
   #viewer .msp-viewport-top-left-controls{display:none!important}
-  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 14px 0;font-size:11.5px;color:var(--muted)}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;padding:10px 16px 0;font-size:11.5px;color:var(--muted)}
   .legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:baseline}
-  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;padding:12px 14px;
-           border-top:1px solid var(--line)}
-  .metric{background:var(--panel-2);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
-  .metric .v{font-family:var(--mono);font-size:16px;font-weight:600}
-  .metric .k{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-top:1px}
-  .hint{font-size:11.5px;color:var(--muted);padding:0 14px 12px;line-height:1.5}
-  .contact{margin:0 14px 12px;padding:11px 13px;background:#0f2a1c;
-           border:1px solid #1d4430;border-radius:8px}
-  .ctitle{font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--good);
-          font-weight:600;margin-bottom:7px}
+
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;
+           padding:12px 16px;border-top:1px solid var(--line)}
+  .metric{background:var(--raised);border:1px solid var(--line);border-radius:7px;padding:8px 10px}
+  .metric .v{font-family:var(--mono);font-size:16px;font-weight:600;
+             font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .metric .k{font-size:11px;color:var(--muted);margin-top:1px}
+  .hint{font-size:12px;color:var(--muted);padding:0 16px 12px;line-height:1.6}
+  .hint b{color:var(--text);font-weight:600}
+
+  /* ---- confidence block. Three bare numbers cannot answer "is that good?";
+     the band track supplies the reference frame, AlphaFold 3's own. */
+  .confhead{display:flex;align-items:baseline;gap:10px;padding:12px 16px 0}
+  .confgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:8px 16px 14px}
+  .confbig{font-family:var(--mono);font-size:26px;font-weight:650;letter-spacing:-.02em;
+           font-variant-numeric:tabular-nums;line-height:1.1}
+  .confsub{font-size:11.5px;color:var(--muted)}
+
+  .contact{margin:0 16px 12px;padding:11px 13px;background:rgba(12,163,12,.08);
+           border:1px solid rgba(12,163,12,.25);border-radius:8px}
+  .ctitle{font-size:12px;color:#6fd66f;font-weight:600;margin-bottom:7px}
   .crow{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap;margin-bottom:7px}
-  .cval{font-family:var(--mono);font-size:15px;font-weight:650}
-  .cval.good{color:var(--good)}
-  .clab{font-size:10.5px;color:var(--muted);margin-right:9px}
-  .cnote{font-size:11.5px;color:var(--muted);line-height:1.55}
-  .cref{display:block;margin-top:4px;font-size:10.5px;opacity:.75}
-  .contact.absent{background:#2b1d10;border-color:#5a3a18}
+  .cval{font-family:var(--mono);font-size:15px;font-weight:650;font-variant-numeric:tabular-nums}
+  .cval.good{color:#6fd66f}
+  .clab{font-size:11.5px;color:var(--muted);margin-right:9px}
+  .cnote{font-size:12px;color:var(--muted);line-height:1.6}
+  .cref{display:block;margin-top:5px;font-size:11px;opacity:.7}
+  .contact.absent{background:rgba(250,178,25,.07);border-color:rgba(250,178,25,.28)}
   .ctitle.absent{color:var(--warn)}
   .cval.no{color:var(--bad)}
-  .contact.na{background:#1c2128;border-color:var(--line)}
+  .contact.na{background:var(--raised);border-color:var(--line)}
   .ctitle.na{color:var(--muted)}
-  .subh{font-size:10.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;
-        font-weight:600;margin:2px 0 7px}
-  .viewtabs{display:flex;gap:6px;padding:10px 14px 0}
-  .viewtabs button{background:var(--panel-2);color:var(--muted);border:1px solid var(--line);
-                   font-weight:500;font-size:12px;padding:6px 11px;border-radius:7px}
-  .viewtabs button.on{background:#132b47;color:var(--text);border-color:#2a5a8f}
-  .cmp{margin:0 14px 12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+
+  /* ---- tabs. The four standing evidence panels are alternative views of the
+     same selection, not a sequence. Stacked they forced a 3,600px scroll to
+     compare any two of them. */
+  .tabs{display:flex;gap:2px;padding:0 10px;border-bottom:1px solid var(--line);
+        overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs button{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;
+               color:var(--muted);font-size:13px;padding:11px 12px;cursor:pointer;
+               white-space:nowrap;font-weight:500}
+  .tabs button:hover{color:var(--text)}
+  .tabs button.on{color:var(--text);border-bottom-color:var(--accent)}
+  .tabpane[hidden]{display:none}
+
+  .viewtabs{display:flex;gap:6px;padding:12px 16px 0;flex-wrap:wrap}
+  .viewtabs button{background:var(--raised);color:var(--muted);border:1px solid var(--line);
+                   font-weight:500;font-size:12px;padding:5px 11px;border-radius:7px;cursor:pointer}
+  .viewtabs button.on{background:rgba(168,199,250,.12);color:var(--text);
+                      border-color:rgba(168,199,250,.35)}
+
+  .cmp{margin:0 16px 12px;border:1px solid var(--line);border-radius:8px;overflow:hidden}
   .cmp table{width:100%;font-size:12px}
-  .cmp th{background:var(--panel-2);font-size:10px;padding:7px 10px}
-  .cmp td{padding:7px 10px;border-bottom:1px solid #21262d}
-  .cmp td:first-child{color:var(--muted);font-size:11.5px}
-  .cmp .v{font-family:var(--mono);font-weight:600}
-  .cmp .yes{color:var(--good)} .cmp .no{color:var(--bad)} .cmp .meh{color:var(--warn)}
-  .cmp tr.key{background:#0f2a1c}
-  #tip{position:fixed;pointer-events:none;z-index:50;background:var(--panel-2);
-       border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:11.5px;
-       box-shadow:0 6px 22px rgba(0,0,0,.5);max-width:260px;display:none;line-height:1.5}
-  #tip b{display:block;font-family:var(--mono);font-size:13px;color:var(--text);margin:2px 0}
-  #tip i{display:block;color:var(--muted);font-style:normal;margin-top:2px}
-  .empty{padding:34px 14px;text-align:center;color:var(--muted);font-size:13px}
+  .cmp th{background:var(--raised);font-size:11.5px;padding:7px 10px;position:static}
+  .cmp td{padding:7px 10px;border-bottom:1px solid rgba(255,255,255,.055);white-space:normal}
+  .cmp td:first-child{color:var(--muted)}
+  .cmp .v{font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+  .cmp .yes{color:#6fd66f} .cmp .no{color:var(--bad)} .cmp .meh{color:var(--warn)}
+  .cmp tr.key{background:rgba(12,163,12,.06)}
+
+  /* Native title tooltips carry the methods notes on column headers. */
+  th[title]{cursor:help;text-decoration:underline dotted rgba(255,255,255,.22);
+            text-underline-offset:3px}
+  #tip{position:fixed;pointer-events:none;z-index:50;background:var(--raised);
+       border:1px solid var(--divider);border-radius:7px;padding:7px 10px;font-size:11.5px;
+       box-shadow:0 8px 28px rgba(0,0,0,.6);max-width:280px;display:none;line-height:1.5}
+  #tip b{display:block;font-family:var(--mono);font-size:13px;color:var(--text);margin:2px 0;
+         font-variant-numeric:tabular-nums}
+  #tip i{display:block;color:var(--muted);font-style:normal;margin-top:3px}
+  .empty{padding:34px 14px;text-align:center;color:var(--faint);font-size:13px}
   .err{color:var(--bad);font-size:12px;padding:8px 14px}
-  @media(max-width:980px){main{grid-template-columns:1fr}.disclaimer{margin-left:0;text-align:left}}
+  details.more{margin:0 16px 12px;font-size:12px;color:var(--muted)}
+  details.more summary{cursor:pointer;color:var(--accent);font-size:12px;padding:4px 0}
+  details.more[open] summary{margin-bottom:6px}
+  @media(max-width:1100px){
+    main{grid-template-columns:1fr}
+    .col-left{position:static}
+    .disclaimer{margin-left:0;text-align:left}
+  }
 </style>
 </head>
 <body>
@@ -123,12 +229,13 @@
   <div class="brand">NeoFold <span>Edge</span></div>
   <div class="badge" id="net"><i class="dot"></i><span>checking…</span></div>
   <div class="badge" id="gpu"><i class="dot"></i><span>GPU —</span></div>
-  <div class="disclaimer">Research prioritisation only. Predicted values are hypotheses,
-    not measurements. Expert review and laboratory validation required.</div>
+  <div class="disclaimer"><b>Research prioritisation only.</b>
+    Every value here is a prediction, not a measurement. Expert review and
+    laboratory validation required.</div>
 </header>
 
 <main>
-  <section>
+  <div class="col-left">
     <div class="card">
       <h2>Tumour variant triage</h2>
       <div class="body">
@@ -141,57 +248,75 @@
             <label for="al">Patient HLA allele</label>
             <select id="al"></select>
           </div>
-          <button id="run">Run triage</button>
+          <button id="run" class="go">Run triage</button>
         </div>
-        <div class="funnel" id="funnel"></div>
-        <div class="hint" style="padding:6px 0 0" id="timing"></div>
+        <div style="margin:16px 0 0" id="funnel"></div>
+        <div class="hint" style="padding:10px 0 0" id="timing"></div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px" id="landscapeCard" hidden>
-      <h2>Screening landscape</h2>
+    <div class="card" id="landscapeCard" hidden>
+      <h2>Screening landscape <small>every peptide scored</small></h2>
       <div class="body" style="padding-bottom:6px">
         <div id="landscape"></div>
         <div class="legend" style="padding:8px 0 0">
           <span><i style="background:#0ca30c"></i>Investigate</span>
           <span><i style="background:#fab219"></i>Not tumour-specific</span>
           <span><i style="background:#ec835a"></i>Weak presentation</span>
-          <span><i style="background:#6e7681"></i>Deprioritised</span>
+          <span><i style="background:#8a8d8c"></i>Deprioritised</span>
         </div>
         <div class="hint" style="padding:8px 0 0">
-          Every screened peptide. The dashed lines are the triage rule itself: a candidate
-          must sit left of 500 nM (presented) <i>and</i> above DAI 10.
-          The upper-left quadrant is the shortlist.
+          The dashed lines are the triage rule, drawn. A candidate must sit left of
+          500 nM to be called presented; the DAI line is shown for reference only —
+          <b>it is not a gate</b>, because we measured it at 0.96× enrichment.
         </div>
       </div>
     </div>
 
-    <div class="card" style="margin-top:14px">
+    <div class="card">
       <h2>Candidates</h2>
       <div class="scroll">
         <table>
           <thead><tr>
-            <th>Peptide</th><th>Variant</th><th class="num">nM</th>
-            <th class="num">WT nM</th><th class="num">DAI</th><th>Assessment</th>
+            <th title="The mutant peptide as the pipeline generated it: an 8-11-mer window\nspanning the variant residue.">Peptide</th><th title="Gene and amino-acid change, from the variant file.\nThe reference residue is asserted against the FASTA, so a wrong\nisoform fails loudly rather than producing a wrong peptide.">Variant</th>
+            <th class="num sortable" data-sort="affinity_nm" title="MHCflurry predicted binding affinity for this allele, in nanomolar.\nLower is stronger. 50 nM is the conventional strong-binder cut and\n500 nM the weak-binder cut, though %rank has largely superseded both\nbecause absolute affinity is not comparable across alleles.\nThe bar behind each number is a log scale.">nM<span class="arrow">▾</span></th>
+            <th class="num sortable" data-sort="wt_affinity_nm" title="The same prediction for the GERMLINE counterpart peptide -- what the\nimmune system has already been tolerised against.">WT nM<span class="arrow">▾</span></th>
+            <th class="num sortable" data-sort="dai" title="Differential agretopicity index: germline affinity divided by mutant\naffinity, damped per Luksza 2017.\n\nREPORTED, NOT GATED ON. We measured it at AUC 0.592 on 1,947 pairs and\n0.412 on TESLA -- below random. Read it alongside Site.">DAI<span class="arrow">▾</span></th>
+            <th title="Where the mutation sits in the peptide.\n\nANCHOR (P2 or the C-terminus) points down into the HLA groove -- it\nchanges binding, but a T-cell never sees it.\nTCR-FACING residues point up at the receptor.\n\nThis is why a large DAI is not the good news it looks like.">Site</th><th title="Triage tier. The ONLY gate is predicted presentation; everything else\non this row annotates rather than filters.">Call</th>
           </tr></thead>
-          <tbody id="rows"><tr><td colspan="6" class="empty">Run triage to see candidates.</td></tr></tbody>
+          <tbody id="rows"><tr><td colspan="7" class="empty">Run triage to see candidates.</td></tr></tbody>
         </table>
       </div>
-      <div class="hint">
+      <div class="tablefoot" id="tablefoot"></div>
+      <details class="more">
+        <summary>How to read DAI, and why it is not a filter</summary>
         <b>DAI</b> is the germline peptide's predicted binding divided by the mutant's,
-        damped per Łuksza <i>et al.</i> 2017. <b>It is reported, not gated on</b> — read it
-        together with <b>Site</b>. A mutation at an <i>anchor</i> (P2 or the C-terminus)
-        changes MHC binding, so it produces a large DAI without necessarily changing what
-        a T-cell sees. A <i>TCR-facing</i> mutation changes the surface the receptor reads
-        while leaving binding roughly unchanged, so a DAI near 1 is expected and is not
-        evidence against it. Gating on DAI would discard TCR-facing candidates — including
-        validated targets like EGFR L858R — while promoting anchor mutants, which is
-        backwards. Presentation is the only gate.
+        damped per Łuksza <i>et al.</i> 2017. Read it together with <b>Site</b>. A mutation
+        at an <i>anchor</i> (P2 or PΩ) changes MHC binding, so it produces a large DAI
+        without necessarily changing what a T-cell sees — anchors point down into the
+        groove. A <i>TCR-facing</i> mutation changes the surface the receptor reads while
+        leaving binding roughly unchanged, so a DAI near 1 is expected and is not evidence
+        against it.
+        <br><br>
+        We measured this rather than argued it: on 1,947 pairs DAI scores AUC 0.660 on
+        anchor mutations and 0.577 on TCR-facing ones — the exact inverse of presentation
+        (0.719 / 0.801). It is an anchor detector. Gating on it discarded TCR-facing
+        candidates and promoted anchor mutants, which is backwards.
+        <b>Presentation is the only gate.</b>
+      </details>
+    </div>
+  </div>
+
+  <div class="col-right">
+    <div class="card detail" id="detailCard" hidden>
+      <h2>Selected candidate <small id="detailId"></small></h2>
+      <div class="body">
+        <div class="track" id="detailTrack"></div>
+        <div class="prose" id="detailProse"></div>
+        <div class="flagrow" id="detailFlags"></div>
       </div>
     </div>
-  </section>
 
-  <section>
     <div class="card">
       <h2>Predicted peptide–HLA complex</h2>
       <div class="viewtabs" id="viewtabs"></div>
@@ -201,93 +326,141 @@
         <span><i style="background:#6b7d96"></i>HLA heavy chain</span>
         <span><i style="background:#3d4759"></i>β2-microglobulin</span>
       </div>
-      <div class="metrics" id="conf"></div>
+
+      <div class="confhead">
+        <span class="subh" style="margin:0">Model self-assessment</span>
+        <span class="eyebrow">not used for ranking</span>
+      </div>
+      <div class="confgrid" id="confGrid"></div>
+
       <div id="contact"></div>
       <div id="compare"></div>
     </div>
 
-    <div class="card" style="margin-top:14px" id="valCard" hidden>
-      <h2>Does the screen actually work?</h2>
-      <div class="body" style="padding-bottom:6px">
-        <div class="metrics" id="valStats" style="border-top:0;padding:0 0 12px"></div>
-        <div id="valChart"></div>
-        <div class="legend" style="padding:8px 0 0">
-          <span><i style="background:#2a78d6"></i>Bjerregaard 2017 (n=1,947)</span>
-          <span><i style="background:#1baf7a"></i>TESLA 2020 (n=608)</span>
-          <span><i style="background:#d03b3b;border-radius:0;height:2px"></i>base rate</span>
-        </div>
-        <div id="valTable"></div>
-        <div class="hint" id="valNote" style="padding:8px 0 0"></div>
+    <div class="card" id="evidenceCard">
+      <h2>Evidence</h2>
+      <div class="tabs" id="evTabs">
+        <button data-pane="pane-val" class="on">Does the screen work?</button>
+        <button data-pane="pane-holdout">Is the structure right?</button>
+        <button data-pane="pane-conf">Confidence maps</button>
+        <button data-pane="pane-md">Dynamics</button>
+        <button data-pane="pane-bench">Throughput</button>
       </div>
-    </div>
 
-    <div class="card" style="margin-top:14px" id="mdCard" hidden>
-      <h2>Molecular-dynamics stress test</h2>
-      <div class="body" style="padding-bottom:6px">
-        <div class="metrics" id="mdStats" style="border-top:0;padding:0 0 12px"></div>
-        <div id="mdTrace"></div>
-        <div class="legend" style="padding:8px 0 0">
-          <span><i style="background:#0ca30c"></i>Tumour peptide (n=3)</span>
-          <span><i style="background:#fab219"></i>Wild-type (n=3)</span>
+      <div class="tabpane" id="pane-val">
+        <div class="body" style="padding-bottom:6px">
+          <div class="metrics" id="valStats" style="border-top:0;padding:0 0 14px"></div>
+          <div class="subh">ROC — two benchmarks, 2,555 lab-tested peptides</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px" id="rocWrap">
+            <div><div class="eyebrow" style="margin-bottom:4px">Bjerregaard 2017</div>
+                 <div id="rocBj"></div></div>
+            <div><div class="eyebrow" style="margin-bottom:4px">TESLA 2020</div>
+                 <div id="rocTe"></div></div>
+          </div>
+          <div class="subh" style="margin-top:18px">Precision at shortlist depth</div>
+          <div id="valChart"></div>
+          <div class="legend" style="padding:8px 0 0">
+            <span><i style="background:#2a78d6"></i>Bjerregaard 2017 (n=1,947)</span>
+            <span><i style="background:#1baf7a"></i>TESLA 2020 (n=608)</span>
+            <span><i style="background:#d03b3b;border-radius:0;height:2px"></i>base rate</span>
+          </div>
+          <div id="valTable"></div>
+          <div class="hint" id="valNote" style="padding:10px 0 0"></div>
         </div>
-        <div id="mdTable"></div>
-        <div class="hint" id="mdCaveat" style="padding:8px 0 0"></div>
       </div>
-    </div>
 
-    <div class="card" style="margin-top:14px" id="benchCard" hidden>
-      <h2>Throughput on one Nano</h2>
-      <div class="body" style="padding-bottom:6px">
-        <div class="metrics" id="benchStats" style="border-top:0;padding:0 0 12px"></div>
-        <div id="scaling"></div>
-        <div class="legend" style="padding:8px 0 0">
-          <span><i style="background:#2a78d6"></i>Measured</span>
-          <span><i style="background:transparent;border:2px dashed #2a78d6;width:11px;height:11px"></i>Projected</span>
+      <div class="tabpane" id="pane-holdout" hidden>
+        <div class="body" style="padding-bottom:6px">
+          <div class="metrics" id="hoStats" style="border-top:0;padding:0 0 14px"></div>
+          <div class="subh">Confidence against measured error</div>
+          <div id="hoScatter"></div>
+          <div class="legend" style="padding:8px 0 0">
+            <span><i style="background:#2a78d6;border-radius:50%"></i>Held out — deposited after the training cutoff</span>
+            <span><i style="background:transparent;border:1.5px dashed #9aa0a6;border-radius:50%"></i>Before the cutoff — may be memorised</span>
+          </div>
+          <div class="hint" id="hoNote" style="padding:10px 0 0"></div>
+          <div id="hoTable"></div>
         </div>
-        <div class="hint" id="benchNote" style="padding:8px 0 0"></div>
       </div>
-    </div>
 
-    <div class="card" style="margin-top:14px" id="confCard" hidden>
-      <h2>Model confidence</h2>
-      <div class="body" style="padding-bottom:8px">
-        <div class="subh">Per-residue confidence (pLDDT)</div>
-        <div id="plddt"></div>
-        <div class="hint" style="padding:6px 0 12px">
-          How sure the model is about each residue's own position. Higher is better;
-          above 90 is considered very high. The peptide sits in the highlighted band.
-        </div>
-        <div class="subh">Predicted aligned error</div>
-        <div id="pae"></div>
-        <div class="hint" style="padding:8px 0 0">
-          Error expected in the position of each residue <i>pair</i>. Dark is good.
-          The square blocks are the three chains; the thin bright bands are the
-          flexible chain termini. The question this answers that pLDDT cannot:
-          <b>is the peptide placed confidently <i>relative to the groove</i></b> —
-          measured mean 2.2 Å peptide↔HLA, against 1.7 Å within the HLA itself.
+      <div class="tabpane" id="pane-conf" hidden>
+        <div class="body" style="padding-bottom:8px">
+          <div class="subh">Per-residue confidence (pLDDT)</div>
+          <div id="plddt"></div>
+          <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;
+                      margin:10px 0 0">
+            <div id="plddtDist" style="flex:none"></div>
+            <div class="prose" style="flex:1;min-width:200px;font-size:12px;color:var(--muted)">
+              How sure the model is about each residue's own position. The bands and their
+              colours are AlphaFold's, and the same values Mol* paints the cartoon above
+              with — so the plot and the picture mean the same thing. The peptide sits in
+              the orange band.
+            </div>
+          </div>
+          <div class="subh" style="margin-top:18px">Predicted aligned error</div>
+          <div id="pae"></div>
+          <div class="hint" style="padding:10px 0 0">
+            Error expected in the position of each residue <i>pair</i>. Dark is good.
+            The square blocks are the three chains; the thin bright bands are the flexible
+            chain termini. The question this answers that pLDDT cannot:
+            <b>is the peptide placed confidently relative to the groove</b> — measured mean
+            2.2 Å peptide↔HLA, against 1.7 Å within the HLA itself.
+            <br><br>
+            <b>This is not a distance map and not a contact map</b>, and it is asymmetric:
+            the value at (x, y) is the error expected in residue x's position when the two
+            structures are superposed on residue y. The ramp is clipped at 8 Å; AlphaFold DB
+            clips its own at an "arbitrary cut-off of 31 Å" for the same reason.
+          </div>
+          <div class="hint" id="structHint">
+            <b>Predicted structure</b>, not an experimental observation. Confidence describes
+            the model's self-assessment, not biological validity — we measured that a
+            deliberately mismatched peptide/allele pair still scores ipTM 0.988, and
+            structure predictors are known to dock non-binding peptides into the groove
+            (Motmaen <i>et al.</i>, PNAS 2023). Ranking comes from the binding screen.
+            <br><br>
+            <b>Do not read binding strength off the picture.</b> For a published
+            wild-type/mutant pair (PDB 7L1B / 7L1C), a <b>70× difference in complex
+            half-life</b> corresponds to just <b>0.73 Å</b> of peptide backbone RMSD.
+            Binding lives in anchor chemistry and kinetics, which a static image cannot
+            show — which is why this panel measures one named, pre-specified contact instead.
+          </div>
         </div>
       </div>
-      <div class="hint" id="structHint">
-        <b>Predicted structure</b>, not an experimental observation. Confidence scores
-        describe the model's self-assessment, not biological validity — we measured that
-        a deliberately mismatched peptide/allele pair still scores ipTM 0.988, and
-        structure predictors are known to dock non-binding peptides into the groove
-        (Motmaen <i>et al.</i>, PNAS 2023). Ranking comes from the binding screen.
-        <br><br>
-        <b>Do not read binding strength off the picture.</b> For a published
-        wild-type/mutant pair (PDB 7L1B / 7L1C), a <b>70× difference in complex
-        half-life</b> corresponds to just <b>0.73 Å</b> of peptide backbone RMSD.
-        Binding lives in anchor chemistry and kinetics, which a static image cannot show —
-        which is why this panel measures one named, pre-specified contact instead.
+
+      <div class="tabpane" id="pane-md" hidden>
+        <div class="body" style="padding-bottom:6px">
+          <div class="metrics" id="mdStats" style="border-top:0;padding:0 0 14px"></div>
+          <div id="mdTrace"></div>
+          <div class="legend" style="padding:8px 0 0">
+            <span><i style="background:#0ca30c"></i>Tumour peptide (n=3)</span>
+            <span><i style="background:#fab219"></i>Wild-type (n=3)</span>
+          </div>
+          <div id="mdTable"></div>
+          <div class="hint" id="mdCaveat" style="padding:10px 0 0"></div>
+        </div>
+      </div>
+
+      <div class="tabpane" id="pane-bench" hidden>
+        <div class="body" style="padding-bottom:6px">
+          <div class="metrics" id="benchStats" style="border-top:0;padding:0 0 14px"></div>
+          <div id="scaling"></div>
+          <div class="legend" style="padding:8px 0 0">
+            <span><i style="background:#2a78d6"></i>Measured</span>
+            <span><i style="background:transparent;border:2px dashed #2a78d6;width:11px;height:11px"></i>Projected</span>
+          </div>
+          <div class="hint" id="benchNote" style="padding:10px 0 0"></div>
+        </div>
       </div>
     </div>
-  </section>
+  </div>
 </main>
 
 <div id="tip"></div>
 <script src="/static/vendor/molstar.js"></script>
 <script type="module">
-import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces, drawPrecisionAtK } from '/static/charts.js?v=9';
+import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces, drawPrecisionAtK,
+         drawRoc, drawConfidenceVsError, drawPeptideTrack, drawIptmBand,
+         drawPlddtDistribution, drawFunnel, PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=12';
 
 const $ = s => document.querySelector(s);
 
@@ -304,6 +477,8 @@ function tip(ev, html){
   tipEl.style.left = x + 'px'; tipEl.style.top = y + 'px';
 }
 let viewer = null, current = null;
+let allRows = [], sortKey = 'affinity_nm', sortDir = 1, lastConf = null;
+const redraws = [];                       // re-run on resize; charts are sized to px
 
 async function jget(u, o){ const r = await fetch(u, o); if(!r.ok) throw new Error(await r.text()); return r.json(); }
 
@@ -356,7 +531,7 @@ async function loadStructure(id){
   try{
     await viewer.loadMvsData(JSON.stringify(mvsScene(`/api/structure/${id}`)),
                              'mvsj', {replaceExisting:true});
-    viewer.plugin.canvas3d?.setProps({renderer:{backgroundColor:0x0d1117}});
+    viewer.plugin.canvas3d?.setProps({renderer:{backgroundColor:0x0f1012}});
     current = id;
   }catch(e){ console.error('structure load failed', e); }
 }
@@ -370,43 +545,133 @@ function tierClass(t){
 }
 
 function renderFunnel(f){
-  const steps = [
-    ['variants','Variants'], ['candidate_peptides','Peptides'],
-    ['self_peptides','Self — cut'], ['presented','Presented'], ['shortlist','Shortlist']
-  ];
-  $('#funnel').innerHTML = steps.filter(([k])=>f[k]!=null).map(([k,l],i,arr)=>
-    `<div class="step ${i===arr.length-1?'final':''} ${k==='self_peptides'?'cut':''}">
-       <div class="n">${f[k].toLocaleString()}</div><div class="l">${l}</div></div>`).join('');
+  drawFunnel($('#funnel'), [
+    {n:f.variants,           label:'somatic variants read'},
+    {n:f.candidate_peptides, label:'candidate peptides', note:'8–11-mers spanning the mutation'},
+    {n:f.self_peptides,      label:'verbatim self peptides', cut:true,
+     note:'not neoantigens at all'},
+    {n:f.presented,          label:'predicted presented'},
+    {n:f.shortlist,          label:'shortlisted for structure', final:true},
+  ].filter(s => s.n != null));
 }
 
-function renderRows(rows){
-  if(!rows.length){ $('#rows').innerHTML='<tr><td colspan="6" class="empty">No candidates.</td></tr>'; return; }
-  $('#rows').innerHTML = rows.slice(0,60).map((r,i)=>`
+/* ---- candidate table. The Assessment prose that made rows 122px tall now
+ * lives in the detail panel; the cell carries the pill and the mechanism. */
+function sortRows(rows){
+  const r = rows.slice();
+  r.sort((a, b) => {
+    const x = a[sortKey], y = b[sortKey];
+    const ax = isFinite(x) ? x : Infinity, by = isFinite(y) ? y : Infinity;
+    return (ax - by) * sortDir;
+  });
+  return r;
+}
+
+function renderRows(){
+  const body = $('#rows');
+  if(!allRows.length){
+    body.innerHTML='<tr><td colspan="7" class="empty">No candidates.</td></tr>';
+    $('#tablefoot').textContent = ''; return;
+  }
+  const sorted = sortRows(allRows);
+  const shown = sorted.slice(0, 80);
+  // Log bar behind the affinity digits: the column spans four orders of magnitude.
+  const lo = Math.log10(Math.max(1, Math.min(...shown.map(r => r.affinity_nm))));
+  const hi = Math.log10(Math.max(...shown.map(r => r.affinity_nm), 10));
+  const barW = v => {
+    const t = (Math.log10(Math.max(1, v)) - lo) / ((hi - lo) || 1);
+    return Math.max(2, Math.round((1 - t) * 100));      // stronger binder = longer bar
+  };
+  body.innerHTML = shown.map((r, i) => `
     <tr class="row" data-i="${i}">
       <td class="mono">${r.peptide}</td>
       <td>${r.candidate_id.split('-').slice(0,2).join(' ')}</td>
-      <td class="num">${r.affinity_nm.toFixed(0)}</td>
+      <td class="num barcell"><i class="bar" style="width:${barW(r.affinity_nm)}%"></i><span>${r.affinity_nm.toFixed(0)}</span></td>
       <td class="num">${isFinite(r.wt_affinity_nm)?r.wt_affinity_nm.toFixed(0):'—'}</td>
       <td class="num">${isFinite(r.dai)?r.dai.toFixed(1):'—'}</td>
-      <td style="font-size:11px;color:${r.mutation_site==='anchor'?'var(--warn)':'var(--muted)'}">${r.mutation_site||''}</td>
-      <td><span class="tier ${tierClass(r.tier)}">${r.tier}</span>
-          <div class="reason">${r.reason}</div></td>
+      <td class="site ${r.mutation_site==='anchor'?'anchor':''}">${r.mutation_site||''}</td>
+      <td><span class="tier ${tierClass(r.tier)}">${r.tier}</span></td>
     </tr>`).join('');
-  document.querySelectorAll('tr.row').forEach(tr=>tr.onclick=()=>{
-    document.querySelectorAll('tr.row').forEach(x=>x.classList.remove('sel'));
+
+  const key = {affinity_nm:'predicted affinity', wt_affinity_nm:'germline affinity', dai:'DAI'}[sortKey];
+  $('#tablefoot').innerHTML =
+    `<span>Showing <b style="color:var(--text)">${shown.length}</b> of
+     ${allRows.length.toLocaleString()} screened</span>
+     <span style="margin-left:auto">ranked by ${key}, ${sortDir>0?'ascending':'descending'} —
+     click a column to re-rank</span>`;
+
+  document.querySelectorAll('tr.row').forEach(tr => tr.onclick = () => {
+    document.querySelectorAll('tr.row').forEach(x => x.classList.remove('sel'));
     tr.classList.add('sel');
+    selectCandidate(shown[+tr.dataset.i]);
   });
 }
 
+/* ---- the detail panel: where the row's prose went, plus a residue track,
+ * because which positions a T-cell can actually see is the most load-bearing
+ * fact about a candidate and a sequence string does not carry it. */
+function selectCandidate(r){
+  if(!r) return;
+  $('#detailCard').hidden = false;
+  $('#detailId').textContent = `${r.candidate_id} · ${r.allele || ''}`;
+  let mut = -1;
+  for (let i = 0; i < r.peptide.length; i++)
+    if (r.wt_peptide && r.wt_peptide[i] !== r.peptide[i]) { mut = i; break; }
+  drawPeptideTrack($('#detailTrack'), r.peptide, r.wt_peptide, mut);
+  $('#detailProse').innerHTML =
+    `<span class="tier ${tierClass(r.tier)}">${r.tier}</span> &nbsp;${r.reason}`;
+
+  const flags = [];
+  flags.push(`<span class="flag">predicted affinity <b>${r.affinity_nm.toFixed(0)} nM</b></span>`);
+  if (isFinite(r.affinity_percentile))
+    flags.push(`<span class="flag">%rank <b>${r.affinity_percentile.toFixed(3)}</b></span>`);
+  if (isFinite(r.presentation_score))
+    flags.push(`<span class="flag">presentation <b>${r.presentation_score.toFixed(2)}</b></span>`);
+  if (isFinite(r.dai))
+    flags.push(`<span class="flag">DAI <b>${r.dai.toFixed(1)}</b> · ${r.mutation_site}</span>`);
+  if (r.self_match)
+    flags.push(`<span class="flag bad">occurs in <b>${r.self_match.protein || 'the human proteome'}</b></span>`);
+  if (r.expression && r.expression.found){
+    const cls = r.expression.risk === 'elevated' ? 'bad'
+              : r.expression.risk === 'moderate' ? 'warn' : '';
+    flags.push(`<span class="flag ${cls}">normal-tissue expression <b>${r.expression.risk}</b></span>`);
+  }
+  $('#detailFlags').innerHTML = flags.join('');
+}
+
+/* ---- confidence. Two decimals, not three: our own data records a
+ * deliberately mismatched peptide/allele pair at ipTM 0.988, so the third
+ * decimal invites comparisons we have measured to be meaningless. */
 function renderConf(s){
-  if(!s){ $('#conf').innerHTML=''; return; }
-  const m = [
-    ['ipTM', s.iptm, 'interface confidence'],
-    ['pLDDT', s.plddt, 'per-atom confidence'],
-    ['pTM', s.ptm, 'global fold confidence'],
-  ];
-  $('#conf').innerHTML = m.map(([k,v])=>
-    `<div class="metric"><div class="v">${v==null?'—':(+v).toFixed(3)}</div><div class="k">${k}</div></div>`).join('');
+  const g = $('#confGrid');
+  if(!s){ g.innerHTML=''; return; }
+  g.innerHTML = `
+    <div>
+      <div class="confbig" id="iptmV">${s.iptm==null?'—':(+s.iptm).toFixed(2)}</div>
+      <div class="confsub">ipTM — interface confidence</div>
+      <div id="iptmBand" style="margin-top:8px"></div>
+    </div>
+    <div>
+      <div style="display:flex;gap:18px">
+        <div>
+          <div class="confbig">${s.plddt==null?'—':(+s.plddt).toFixed(2)}</div>
+          <div class="confsub">pLDDT — per-atom</div>
+        </div>
+        <div>
+          <div class="confbig">${s.ptm==null?'—':(+s.ptm).toFixed(2)}</div>
+          <div class="confsub">pTM — global fold</div>
+        </div>
+      </div>
+      <div class="confsub" style="margin-top:10px;line-height:1.5">
+        Bands are AlphaFold 3's own. Note it publishes a named
+        <b style="color:var(--text)">grey zone</b> at 0.6–0.8 meaning the prediction
+        could be right or wrong.
+      </div>
+    </div>`;
+  if (s.iptm != null){
+    const draw = () => drawIptmBand($('#iptmBand'), +s.iptm);
+    draw(); redraws.push(draw);
+  }
 }
 
 function renderContact(c){
@@ -494,7 +759,7 @@ function renderCompare(c){
       </tbody>
     </table>
   </div>
-  <div class="hint" style="padding:0 14px 12px">
+  <div class="hint" style="padding:0 16px 12px">
     <b>Read the second row carefully.</b> The structure model gives the wild-type peptide —
     which experimentally does <i>not</i> stabilise this allele — essentially the same
     confidence as the tumour peptide. That is why ranking comes from the binding screen
@@ -533,31 +798,58 @@ async function run(){
       body: JSON.stringify({vcf:$('#ds').value, allele:$('#al').value, top_n:5})
     });
     renderFunnel(data.funnel);
-    renderRows(data.results);
+    allRows = data.results;
+    renderRows();
     $('#landscapeCard').hidden = false;
-    drawLandscape($('#landscape'), data.results, tip, p => {
+    const drawLand = () => drawLandscape($('#landscape'), allRows, tip, p => {
       const tr = [...document.querySelectorAll('tr.row')]
         .find(t => t.querySelector('.mono')?.textContent === p.peptide);
       if (tr){ document.querySelectorAll('tr.row').forEach(x=>x.classList.remove('sel'));
-               tr.classList.add('sel'); tr.scrollIntoView({block:'center', behavior:'smooth'}); }
+               tr.classList.add('sel'); tr.scrollIntoView({block:'center', behavior:'smooth'});
+               selectCandidate(p); }
     });
-    $('#timing').textContent =
-      `Screened ${data.funnel.candidate_peptides.toLocaleString()} peptides ` +
-      `(mutant + wild-type) in ${data.timings.screen}s` + (data.cached?' · cached':'');
+    drawLand(); redraws.push(drawLand);
+    // Open on the top candidate: an empty detail panel next to a full table is
+    // a dead end the reader has to discover the fix for.
+    selectCandidate(sortRows(allRows)[0]);
+    $('#timing').innerHTML =
+      `Screened <b>${data.funnel.candidate_peptides.toLocaleString()}</b> peptides ` +
+      `(mutant and germline) in <b>${data.timings.screen}s</b>` + (data.cached?' · cached':'');
   }catch(e){
-    $('#rows').innerHTML = `<tr><td colspan="6" class="err">${e.message}</td></tr>`;
+    $('#rows').innerHTML = `<tr><td colspan="7" class="err">${e.message}</td></tr>`;
   }finally{ btn.disabled=false; btn.textContent='Run triage'; }
 }
 
 (async function(){
   await initViewer();
 
+  // Column sorting. A ranked list whose ranking key is implicit is the one
+  // thing every reference tool gets right and we did not.
+  document.querySelectorAll('th.sortable').forEach(th => th.onclick = () => {
+    const k = th.dataset.sort;
+    if (sortKey === k) sortDir = -sortDir;
+    else { sortKey = k; sortDir = (k === 'dai') ? -1 : 1; }   // DAI: high is notable
+    document.querySelectorAll('th.sortable').forEach(t => {
+      t.classList.toggle('on', t.dataset.sort === sortKey);
+      t.querySelector('.arrow').textContent =
+        t.dataset.sort === sortKey ? (sortDir > 0 ? '▴' : '▾') : '▾';
+    });
+    renderRows();
+  });
+  document.querySelector('th[data-sort="affinity_nm"]').classList.add('on');
+
+  // Evidence tabs.
+  document.querySelectorAll('#evTabs button').forEach(b => b.onclick = () => {
+    document.querySelectorAll('#evTabs button').forEach(x => x.classList.toggle('on', x === b));
+    document.querySelectorAll('.tabpane').forEach(p => p.hidden = p.id !== b.dataset.pane);
+    redraws.forEach(fn => { try{ fn(); }catch(e){} });   // charts size to a visible box
+  });
+
   const ds = await jget('/api/datasets');
   $('#ds').innerHTML = ds.datasets.map(d=>`<option value="${d.path}">${d.name}</option>`).join('');
   const prefer = ds.datasets.find(d=>d.name.includes('large'));
   if(prefer) $('#ds').value = prefer.path;
 
-  const al = await jget('/api/alleles?q=HLA-C*08');
   const common = ['HLA-C*08:02','HLA-A*02:01','HLA-A*11:01','HLA-A*03:01','HLA-B*07:02'];
   const more = (await jget('/api/alleles')).alleles;
   const list = [...new Set([...common, ...more])];
@@ -577,11 +869,16 @@ async function run(){
     try{ renderContact(await jget(`/api/contact/${id}`)); }catch(e){ $('#contact').innerHTML=''; }
     try{
       const conf = await jget(`/api/confidence/${id}`);
-      $('#confCard').hidden = false;
-      drawPlddt($('#plddt'), conf, tip); drawPae($('#pae'), conf, tip);
-      addEventListener('resize', () => {
-        drawPlddt($('#plddt'), conf, tip); drawPae($('#pae'), conf, tip); }, {once:true});
-    }catch(e){ $('#confCard').hidden = true; }
+      lastConf = conf;
+      const draw = () => {
+        if ($('#pane-conf').hidden) return;
+        drawPlddt($('#plddt'), conf, tip);
+        drawPae($('#pae'), conf, tip);
+        drawPlddtDistribution($('#plddtDist'), conf.plddt);
+      };
+      draw(); redraws.push(draw);
+    }catch(e){ lastConf = null; }
+    $('#compare').style.display = id.startsWith('kras_g12d_9mer') ? '' : 'none';
   }
 
   // Tabs: prefer the labelled mutant/wild-type pair, which is the story.
@@ -599,14 +896,23 @@ async function run(){
   try{
     const v = await jget('/api/validation');
     if(v.available){
-      $('#valCard').hidden = false;
       const tAuc = v.tesla.auc['OUR presentation score'].auc;
       $('#valStats').innerHTML = [
-        [v.auc.auc_overall.presentation_score, 'AUC · Bjerregaard'],
+        [v.auc.auc_overall.presentation_score.toFixed(3), 'AUC · Bjerregaard'],
         [tAuc.toFixed(3), 'AUC · TESLA'],
-        [(v.n_pairs + v.tesla.n_scored).toLocaleString(), 'peptides tested'],
+        [(v.n_pairs + v.tesla.n_scored).toLocaleString(), 'peptides lab-tested'],
         [(v.n_responders + v.tesla.n_immunogenic), 'true responders'],
+        ['5–6×', 'enrichment at top 25'],
       ].map(([a,b]) => `<div class="metric"><div class="v">${a}</div><div class="k">${b}</div></div>`).join('');
+
+      if (v.roc){
+        const drawRocs = () => {
+          if ($('#pane-val').hidden) return;
+          if (v.roc.bjerregaard) drawRoc($('#rocBj'), v.roc.bjerregaard, tip);
+          if (v.roc.tesla)       drawRoc($('#rocTe'), v.roc.tesla, tip);
+        };
+        drawRocs(); redraws.push(drawRocs);
+      }
 
       // Both benchmarks share a depth axis but have different base rates, so
       // each is drawn against its own dashed baseline in the tooltip.
@@ -614,63 +920,127 @@ async function run(){
                   .map(p => ({k:p.k, precision:p.precision, hits:p.hits}));
       const te = Object.entries(v.tesla.precision_at_k)
                   .map(([k,p]) => ({k:+k, precision:p.precision, hits:p.hits}));
-      drawPrecisionAtK($('#valChart'), [
+      const drawPk = () => { if (!$('#pane-val').hidden) drawPrecisionAtK($('#valChart'), [
         {label:'Bjerregaard 2017', colour:'#2a78d6', points:bj},
         {label:'TESLA 2020',       colour:'#1baf7a', points:te},
-      ], v.tesla.base_rate, tip);
+      ], v.tesla.base_rate, tip); };
+      drawPk(); redraws.push(drawPk);
 
       const rows = [
         ['our presentation score', v.auc.auc_overall.presentation_score, tAuc],
         ['our predicted affinity', v.auc.auc_overall.affinity_nm, v.tesla.auc['OUR predicted affinity (nM)'].auc],
+        ['TESLA’s measured affinity', null, v.tesla.auc['TESLA: MEASURED affinity (nM)'].auc],
         ['differential agretopicity (DAI)', v.auc.auc_overall.dai,
          v.tesla.auc['TESLA: agretopicity (lower=better)'].auc],
       ];
-      $('#valTable').innerHTML = `<div class="cmp" style="margin:12px 0 0"><table>
+      $('#valTable').innerHTML = `<div class="cmp" style="margin:14px 0 0"><table>
         <thead><tr><th>Score</th><th>AUC — Bjerregaard</th><th>AUC — TESLA</th></tr></thead>
         <tbody>${rows.map(([n,a,b]) => `<tr${n.startsWith('our pres')?' class="key"':''}>
-          <td>${n}</td><td class="v">${a.toFixed(3)}</td>
+          <td>${n}</td><td class="v">${a==null?'—':a.toFixed(3)}</td>
           <td class="v ${b<0.5?'no':''}">${b.toFixed(3)}${b<0.5?' — below random':''}</td></tr>`).join('')}
         </tbody></table></div>`;
 
       $('#valNote').innerHTML =
         `Two independent benchmarks of peptides with <b>experimental T-cell assay outcomes</b>.
          TESLA is the harder one: its negatives are same-patient peptides that a real pipeline
-         nominated and a real assay rejected. Our screen reaches <b>AUC 0.76–0.78</b> and puts a
-         true responder in the top 25 at <b>16%</b> and <b>32%</b> — about <b>5× the base rate</b>
-         on both. For scale, our predicted score matches TESLA's
-         <i>experimentally measured</i> binding affinity (AUC 0.747), which says the ceiling here
-         is the biology rather than the predictor.
-         <br><br><b>Caveat:</b> MHCflurry may have trained on some of these peptides, so this
-         measures whether the ranking is useful — not that it generalises to unseen chemistry.`;
+         nominated and a real assay rejected.
+         <br><br>
+         <b>Read the third row.</b> Our <i>predicted</i> score matches TESLA's
+         <i>experimentally measured</i> binding affinity. The tempting conclusion — prediction
+         beats experiment — is wrong. The correct one is that binding affinity, however you
+         obtain it, is not a strong discriminator of immunogenicity. <b>The ceiling is the
+         biology, not the predictor.</b>
+         <br><br>
+         <b>And the last row failed.</b> Agretopicity scores below random on TESLA. We shipped
+         its reciprocal as a filter early on; two independent datasets say it was worse than
+         chance, so it is an annotation now.
+         <br><br>
+         <b>Caveat:</b> MHCflurry may have trained on some of these peptides, so this measures
+         whether the ranking is useful — not that it generalises to unseen chemistry.`;
+
+      if (v.structures && v.structures.length){
+        const held = v.structures.filter(s => s.post);
+        const med = a => { const s = a.slice().sort((x,y)=>x-y);
+          return s.length % 2 ? s[(s.length-1)/2] : (s[s.length/2-1]+s[s.length/2])/2; };
+        const bbs = held.map(s => s.bb), ipt = held.map(s => s.iptm);
+        // Pearson r between confidence and actual error, over the held-out set.
+        const mean = a => a.reduce((x,y)=>x+y,0)/a.length;
+        const mb = mean(bbs), mi = mean(ipt);
+        const r = ipt.reduce((acc,v,i)=>acc+(v-mi)*(bbs[i]-mb),0) /
+          Math.sqrt(ipt.reduce((a,v)=>a+(v-mi)**2,0) * bbs.reduce((a,v)=>a+(v-mb)**2,0));
+        $('#hoStats').innerHTML = [
+          [med(bbs).toFixed(2)+' Å', 'median error, held out'],
+          [held.length, 'crystals after the cutoff'],
+          [(Math.max(...ipt)-Math.min(...ipt)).toFixed(3), 'total ipTM spread'],
+          [(Math.max(...bbs)-Math.min(...bbs)).toFixed(2)+' Å', 'total error spread'],
+          [r.toFixed(2), 'correlation r'],
+        ].map(([a,b]) => `<div class="metric"><div class="v">${a}</div><div class="k">${b}</div></div>`).join('');
+
+        const drawHo = () => { if (!$('#pane-holdout').hidden)
+          drawConfidenceVsError($('#hoScatter'), v.structures, tip); };
+        drawHo(); redraws.push(drawHo);
+
+        $('#hoNote').innerHTML =
+          `Twelve peptide–HLA crystal structures, split on <b>Boltz-2's 2023-06-01 training
+           cutoff</b>. Held-out median peptide backbone RMSD is <b>${med(bbs).toFixed(2)} Å</b>,
+           and every held-out structure is under 2 Å. Our two original validation cases gave
+           0.42 Å — but both predate the cutoff, so that is a training-set number and we do
+           not quote it.
+           <br><br>
+           <b>The point of this chart is the flat cloud.</b> Confidence spans
+           ${(Math.max(...ipt)-Math.min(...ipt)).toFixed(3)} while real error spans
+           ${(Math.max(...bbs)-Math.min(...bbs)).toFixed(2)} Å, at
+           <b>r = ${r.toFixed(2)}</b>. The worst prediction in the set scores <i>higher</i>
+           than the best one. This is why nothing in this pipeline ranks on confidence.`;
+
+        const sorted = v.structures.slice().sort((a,b) => a.bb - b.bb);
+        $('#hoTable').innerHTML = `<div class="cmp" style="margin:14px 0 0"><table>
+          <thead><tr><th>PDB</th><th>Deposited</th><th title="The mutant peptide as the pipeline generated it: an 8-11-mer window\nspanning the variant residue.">Peptide</th>
+            <th>Backbone RMSD</th><th>ipTM</th><th>Held out?</th></tr></thead>
+          <tbody>${sorted.map(s => `<tr>
+            <td class="v">${s.pdb}</td><td>${s.dep}</td>
+            <td class="v">${s.pep}</td>
+            <td class="v ${s.bb<2?'yes':'meh'}">${s.bb.toFixed(2)} Å</td>
+            <td class="v">${s.iptm.toFixed(3)}</td>
+            <td class="${s.post?'yes':'meh'}">${s.post?'yes':'before cutoff'}</td>
+          </tr>`).join('')}</tbody></table></div>`;
+      }
     }
   }catch(e){ console.warn('no validation', e); }
 
   try{
     const md = await jget('/api/md');
     if(md.available){
-      $('#mdCard').hidden = false;
       $('#mdStats').innerHTML = [
         [md.throughput_ns_per_day, 'ns / day'],
         [md.production_ns_per_run + ' ns', 'per run'],
         ['OpenMM', 'CUDA on GB10'],
       ].map(([v,k]) => `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
-      drawMdTraces($('#mdTrace'), md, tip, 'contacts');
-      $('#mdTable').innerHTML = `<div class="cmp" style="margin:12px 0 0">
+      const drawMd = () => { if (!$('#pane-md').hidden) drawMdTraces($('#mdTrace'), md, tip, 'contacts'); };
+      drawMd(); redraws.push(drawMd);
+      $('#mdTable').innerHTML = `<div class="cmp" style="margin:14px 0 0">
         <table><thead><tr><th>Metric</th><th>Tumour</th><th>Wild-type</th><th>Separates?</th></tr></thead><tbody>
         ${md.metrics.map(m => `<tr${m.separates?' class="key"':''}>
           <td>${m.name}</td>
-          <td class="v">${m.mutant.mean} <span style="color:var(--muted);font-size:10px">[${m.mutant.min}–${m.mutant.max}]</span></td>
-          <td class="v">${m.wild_type.mean} <span style="color:var(--muted);font-size:10px">[${m.wild_type.min}–${m.wild_type.max}]</span></td>
+          <td class="v">${m.mutant.mean} <span style="color:var(--faint);font-size:10.5px">[${m.mutant.min}–${m.mutant.max}]</span></td>
+          <td class="v">${m.wild_type.mean} <span style="color:var(--faint);font-size:10.5px">[${m.wild_type.min}–${m.wild_type.max}]</span></td>
           <td class="${m.separates?'yes':'no'}">${m.separates?'Yes — ranges disjoint':'No — ranges overlap'}</td>
         </tr>`).join('')}</tbody></table></div>`;
-      $('#mdCaveat').innerHTML = '<b>Read this before the numbers.</b> ' + md.caveat;
+      $('#mdCaveat').innerHTML = '<b>Read this before the numbers.</b> ' + md.caveat +
+        `<br><br><b>And read our replicate agreement sceptically.</b> The three runs agree
+         closely, which looks reassuring and is not: Knapp <i>et al.</i> 2018 show that
+         sub-10 ns agreement is the signature of <b>undersampling</b> — the run is too short
+         to explore anywhere else — and that 100 ns is the state of the art for this system
+         class. We are 100× below that floor. This panel can reject an implausible pose. It
+         cannot support a claim about stability, and it must not be used to corroborate the
+         salt bridge, because generalised-Born solvent over-stabilises salt bridges by
+         3–4 kcal/mol and the error is specifically in the guanidinium group of arginine.`;
     }
   }catch(e){ console.warn('no md', e); }
 
   try{
     const b = await jget('/api/benchmark');
     if(b.available){
-      $('#benchCard').hidden = false;
       const m = b.measured;
       $('#benchStats').innerHTML = [
         [m.mean_wall_s+' s', 'per candidate'],
@@ -679,23 +1049,23 @@ async function run(){
         [b.telemetry.gpu_utilisation_peak_pct+'%', 'peak GPU'],
         [b.telemetry.power_peak_w+' W', 'peak power'],
       ].map(([v,k]) => `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
-      drawScaling($('#scaling'), b, tip);
+      const drawSc = () => { if (!$('#pane-bench').hidden) drawScaling($('#scaling'), b, tip); };
+      drawSc(); redraws.push(drawSc);
       $('#benchNote').innerHTML =
         `Single-node figures are <b>measured on this hardware</b> (${m.n_full_setting_runs} full-setting runs,
          383-residue complex, cached MSA). Multi-node figures are <b>projected</b> by multiplying
          measured throughput — we had one Nano, so no multi-node number was observed.
          Candidates are independent jobs, which is what makes the projection reasonable;
          it would erode from queue overhead, storage I/O and sustained thermal behaviour.
-         <b>${m.overhead_fraction_pct}% of each job is fixed model-load overhead</b>, so batching
-         candidates into one process should roughly double single-node throughput.`;
+         <b>${m.overhead_fraction_pct}% of each job is fixed model-load overhead</b>, which is
+         why batching five candidates into one process measured 36 s each rather than 64 —
+         a 1.79× gain from a scheduling change.`;
     }
   }catch(e){ console.warn('no benchmark', e); }
-  // The comparison table is specific to the KRAS pair; hide it on other tabs.
-  document.querySelectorAll('.viewtabs button').forEach(b => {
-    const prev = b.onclick;
-    b.onclick = async () => { await prev();
-      $('#compare').style.display = b.dataset.id.startsWith('kras_g12d_9mer') ? '' : 'none'; };
-  });
+
+  let t = null;
+  addEventListener('resize', () => { clearTimeout(t);
+    t = setTimeout(() => redraws.forEach(fn => { try{ fn(); }catch(e){} }), 150); });
 
   refreshNet(); refreshGpu();
   setInterval(refreshGpu, 2000);

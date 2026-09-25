@@ -534,6 +534,7 @@ def validation() -> dict:
     for name, fn in (("precision_at_k", "precision_at_k.json"),
                      ("auc", "auc.json"),
                      ("tesla", "tesla_validation.json"),
+                     ("roc", "roc.json"),
                      ("structures", "holdout_structures.json")):
         f = bench / fn
         if f.exists():

@@ -12,8 +12,34 @@
 const SEQ = ['#0d366b','#104281','#184f95','#1c5cab','#256abf','#2a78d6',
              '#3987e5','#5598e7','#6da7ec','#86b6ef','#9ec5f4','#b7d3f6','#cde2fb'];
 const STATUS = { good:'#0ca30c', warning:'#fab219', serious:'#ec835a',
-                 critical:'#d03b3b', muted:'#6e7681' };
-const INK = { primary:'#e6edf3', secondary:'#8b949e', grid:'#30363d', surface:'#161b22' };
+                 critical:'#d03b3b', muted:'#8a8d8c' };
+const INK = { primary:'#f6f6f6', secondary:'#9aa0a6', grid:'#3a3b3d', surface:'#1b1b1b' };
+
+/* AlphaFold's pLDDT bands, sampled from the AlphaFold DB legend and confirmed
+ * against molstar's own plddt.ts -- which is what our 3D viewer already paints
+ * the cartoon with. Using anything else would make the chart and the structure
+ * disagree about the same number.
+ *
+ * NOT the ColabFold values (#0D57D3/#6ACBF1/#FED936/#FD7D4D); those are close
+ * enough to look like a typo of these and are a different palette. */
+export const PLDDT_BANDS = [
+  { min:90, max:100, hex:'#0053D6', label:'Very high', rule:'pLDDT > 90' },
+  { min:70, max:90,  hex:'#65CBF3', label:'High',      rule:'90 > pLDDT > 70' },
+  { min:50, max:70,  hex:'#FFDB13', label:'Low',       rule:'70 > pLDDT > 50' },
+  { min:0,  max:50,  hex:'#FF7D45', label:'Very low',  rule:'pLDDT < 50' },
+];
+export function plddtBand(v){
+  return PLDDT_BANDS.find(b => v >= b.min) || PLDDT_BANDS[PLDDT_BANDS.length - 1];
+}
+
+/* AlphaFold 3's own ipTM bands, verbatim from the AlphaFold Server FAQ. The
+ * named GREY ZONE is the useful part: an officially sanctioned band that means
+ * "we do not know", which is the honest reading of every ipTM we produce. */
+export const IPTM_BANDS = [
+  { lo:0,   hi:0.6, hex:'#B2182B', label:'likely failed' },
+  { lo:0.6, hi:0.8, hex:'#A8A9AC', label:'grey zone' },
+  { lo:0.8, hi:1.0, hex:'#2166AC', label:'confident' },
+];
 
 function seqColor(t){                      // t in [0,1] -> sequential step
   const i = Math.max(0, Math.min(SEQ.length - 1, Math.round(t * (SEQ.length - 1))));
@@ -87,6 +113,13 @@ export function drawPae(container, data, tip){
     if (c.length > 40)
       svg.appendChild(text((a + b) / 2, plot + 20, c.id, {anchor:'middle', size:9}));
   }
+  // AFDB labels these axes; unlabelled, the plot is just a pretty square.
+  svg.appendChild(text(pad + plot / 2, plot + 24, 'scored residue',
+                       {anchor:'middle', size:9}));
+  const ay = plot / 2, ax = pad - 24;
+  svg.appendChild(text(ax, ay, 'aligned residue',
+                       {anchor:'middle', size:9,
+                        extra:{transform:`rotate(-90 ${ax} ${ay})`}}));
   wrap.appendChild(svg);
   container.appendChild(wrap);
 
@@ -109,8 +142,11 @@ export function drawPae(container, data, tip){
     const name = k => (data.chains.find(c => k >= c.start && k <= c.end) || {}).label || '?';
     const idx = k => { const c = data.chains.find(c => k >= c.start && k <= c.end);
                        return c ? k - c.start + 1 : k; };
-    tip(ev, `${name(i)} ${idx(i)} ↔ ${name(j)} ${idx(j)}`
-          + `<b>${pae[i][j].toFixed(1)} Å</b> predicted aligned error`);
+    // PAE is asymmetric: (x,y) != (y,x). Say which is which.
+    tip(ev, `scored ${name(j)} ${idx(j)} · aligned on ${name(i)} ${idx(i)}`
+          + `<b>${pae[i][j].toFixed(1)} Å</b>`
+          + `<i>expected error in the scored residue's position when the two `
+          + `structures are superposed on the aligned one</i>`);
   });
   canvas.addEventListener('mouseleave', () => tip(null));
 }
@@ -125,17 +161,32 @@ export function drawPlddt(container, data, tip){
   const y = t => 6 + (1 - (t - 50) / 50) * ph;      // 50..100 band
 
   const svg = el('svg', {width:w, height:h, style:'display:block'});
+
+  // We were already drawing gridlines at 50/70/90/100 -- the exact AlphaFold
+  // band edges -- and then filling the area a flat blue. Paint the bands.
+  for (const b of PLDDT_BANDS){
+    const top = y(Math.min(100, b.max)), bot = y(Math.max(50, b.min));
+    if (bot <= top) continue;
+    svg.appendChild(el('rect', {x:padL, y:top, width:w - 6 - padL,
+                                height:bot - top, fill:b.hex, opacity:.10}));
+  }
   for (const g of [50, 70, 90, 100]){
     svg.appendChild(el('line', {x1:padL, x2:w - 6, y1:y(g), y2:y(g),
-                                stroke:INK.grid, 'stroke-width':1}));
+                                stroke:INK.grid, 'stroke-width':1, opacity:.7}));
     svg.appendChild(text(padL - 5, y(g) + 3, g, {anchor:'end', size:9}));
   }
   let d = `M ${x(0)} ${y(v[0])}`;
   for (let i = 1; i < n; i++) d += ` L ${x(i)} ${y(v[i])}`;
   svg.appendChild(el('path', {d:`${d} L ${x(n-1)} ${y(50)} L ${x(0)} ${y(50)} Z`,
-                              fill:'#3987e5', opacity:.16}));
-  svg.appendChild(el('path', {d, fill:'none', stroke:'#3987e5', 'stroke-width':2,
-                              'stroke-linejoin':'round'}));
+                              fill:'#0053D6', opacity:.10}));
+  // Segment the stroke by band, so the trace and the Mol* cartoon above it are
+  // the same colours for the same reason.
+  for (let i = 1; i < n; i++){
+    const b = plddtBand(Math.min(v[i], v[i-1]));
+    svg.appendChild(el('line', {x1:x(i-1), y1:y(v[i-1]), x2:x(i), y2:y(v[i]),
+                                stroke:b.hex, 'stroke-width':2,
+                                'stroke-linecap':'round'}));
+  }
 
   for (const c of data.chains){
     const a = x(c.start), b = x(c.end);
@@ -160,8 +211,10 @@ export function drawPlddt(container, data, tip){
     const i = Math.round(((ev.clientX - r.left) - padL) / pw * (n - 1));
     if (i < 0 || i >= n) return;
     const c = data.chains.find(c => i >= c.start && i <= c.end);
+    const b = plddtBand(v[i]);
     tip(ev, `${c ? c.label : ''} residue ${c ? i - c.start + 1 : i}`
-          + `<b>pLDDT ${v[i].toFixed(1)}</b>`);
+          + `<b>pLDDT ${v[i].toFixed(1)}</b>`
+          + `<i style="color:${b.hex}">${b.label} (${b.rule})</i>`);
   });
   svg.addEventListener('mouseleave', () => tip(null));
 }
@@ -191,7 +244,8 @@ export function drawLandscape(container, rows, tip, onPick){
   svg.appendChild(text(X(500) - 4, 12, '500 nM', {anchor:'end', size:9}));
   svg.appendChild(el('line', {x1:padL, x2:padL + pw, y1:Y(10), y2:Y(10),
                               stroke:INK.grid, 'stroke-width':1, 'stroke-dasharray':'3 3'}));
-  svg.appendChild(text(padL + pw, Y(10) - 4, 'DAI ≥ 10 (Rech 2018)', {anchor:'end', size:9}));
+  svg.appendChild(text(padL + pw, Y(10) - 4, 'DAI ≥ 10 — reference only, not a gate',
+                       {anchor:'end', size:9}));
 
   for (const v of [1, 10, 100, 1000, 10000])
     if (lx(v) >= x0 && lx(v) <= x1)
@@ -210,9 +264,14 @@ export function drawLandscape(container, rows, tip, onPick){
 
   for (const p of pts.slice().reverse()){
     const investigate = p.tier === 'investigate';
+    // Deprioritised points were drawn at r=3, opacity .5, in a grey barely
+    // above the panel: the plot read as empty. But the POINT of the chart is
+    // that the shortlist is a tiny corner of a crowded field, so the crowd has
+    // to be visible. Smaller radius, much higher opacity: a dense fog of small
+    // visible dots beats a sparse scatter of grey smudges.
     const c = el('circle', {cx:X(p.affinity_nm), cy:Y(p.dai),
-      r: investigate ? 5 : 3, fill:colour(p.tier),
-      opacity: investigate ? .95 : .5,
+      r: investigate ? 5.5 : 2.4, fill:colour(p.tier),
+      opacity: investigate ? 1 : .82,
       stroke: investigate ? INK.surface : 'none', 'stroke-width':2,
       style:'cursor:pointer'});
     c.addEventListener('mousemove', ev => tip(ev,
@@ -351,4 +410,306 @@ export function drawPrecisionAtK(container, series, baseRate, tip){
   });
   svg.appendChild(text(padL, 10, 'precision = fraction that are true T-cell responders', {size:9.5}));
   container.appendChild(svg);
+}
+
+/* --------------------------------------------------------------- ROC */
+/* AUC is one number and one number hides the shape. A rule can reach 0.75 by
+ * being excellent on the top 5% and useless after, or mediocre throughout --
+ * different tools, same summary statistic. The curve shows which.
+ *
+ * It also makes the DAI failure visible rather than asserted: a curve hugging
+ * the diagonal, and on TESLA crossing BELOW it, is an argument no bar makes. */
+export function drawRoc(container, block, tip, opts = {}){
+  container.innerHTML = '';
+  const w = Math.min(container.clientWidth || 360, opts.max || 400);
+  const padL = 40, padB = 34, padT = 14, padR = 12;
+  const side = Math.min(w - padL - padR, 260);
+  const h = side + padB + padT;
+  const X = v => padL + v * side;
+  const Y = v => padT + (1 - v) * side;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+
+  // Shade below the diagonal. A curve entering it is worse than guessing, and
+  // that should look wrong before anyone reads the legend.
+  svg.appendChild(el('path', {
+    d:`M ${X(0)} ${Y(0)} L ${X(1)} ${Y(0)} L ${X(1)} ${Y(1)} Z`,
+    fill:STATUS.critical, opacity:.055}));
+  svg.appendChild(text(X(.97), Y(.10), 'worse than chance',
+                       {anchor:'end', size:9, fill:STATUS.critical, extra:{opacity:.8}}));
+
+  for (const g of [0, .25, .5, .75, 1]){
+    svg.appendChild(el('line', {x1:X(0), x2:X(1), y1:Y(g), y2:Y(g),
+                                stroke:INK.grid, 'stroke-width':1, opacity:.55}));
+    svg.appendChild(el('line', {x1:X(g), x2:X(g), y1:Y(0), y2:Y(1),
+                                stroke:INK.grid, 'stroke-width':1, opacity:.35}));
+    svg.appendChild(text(padL - 6, Y(g) + 3, g.toFixed(g % 1 ? 2 : 0),
+                         {anchor:'end', size:9}));
+    svg.appendChild(text(X(g), Y(0) + 14, g.toFixed(g % 1 ? 2 : 0),
+                         {anchor:'middle', size:9}));
+  }
+  svg.appendChild(el('line', {x1:X(0), x2:X(1), y1:Y(0), y2:Y(1),
+                              stroke:INK.secondary, 'stroke-width':1,
+                              'stroke-dasharray':'4 4', opacity:.7}));
+
+  for (const s of block.series){
+    if (!s.points || s.points.length < 2) continue;
+    const d = s.points.map((p, i) =>
+      `${i ? 'L' : 'M'} ${X(p[0]).toFixed(1)} ${Y(p[1]).toFixed(1)}`).join(' ');
+    const path = el('path', {d, fill:'none', stroke:s.colour,
+      'stroke-width': s.ours ? 2.4 : 1.8,
+      'stroke-linejoin':'round', 'stroke-linecap':'round',
+      'stroke-dasharray': s.ours ? '' : '5 3',
+      opacity: s.ours ? 1 : .85, style:'cursor:pointer'});
+    path.addEventListener('mousemove', ev => tip(ev,
+      `<b>AUC ${s.auc.toFixed(3)}</b>${s.label}`
+      + `<i>${s.ours ? 'our prediction' : 'reference metric'}`
+      + `${s.auc < 0.5 ? ' — below random' : ''}</i>`));
+    path.addEventListener('mouseleave', () => tip(null));
+    svg.appendChild(path);
+  }
+
+  svg.appendChild(text(padL + side / 2, h - 3, 'false positive rate',
+                       {anchor:'middle', size:9.5}));
+  svg.appendChild(text(padL, 9, 'true positive rate', {size:9.5}));
+  container.appendChild(svg);
+
+  // Legend carries the AUC, so the curve and its summary are never separated.
+  const leg = document.createElement('div');
+  leg.style.cssText = 'display:flex;flex-direction:column;gap:4px;margin:8px 0 0 ' +
+                      `${padL}px;font-size:11px;color:${INK.secondary}`;
+  leg.innerHTML = block.series.map(s => `
+    <span style="display:flex;align-items:center;gap:7px">
+      <span style="width:16px;height:0;border-top:${s.ours ? 2.4 : 1.8}px ${s.ours ? 'solid' : 'dashed'} ${s.colour};flex:none"></span>
+      <span style="flex:1">${s.label}</span>
+      <span style="font-family:ui-monospace,monospace;color:${
+        s.auc < 0.5 ? STATUS.critical : INK.primary};font-weight:600">${s.auc.toFixed(3)}</span>
+    </span>`).join('');
+  container.appendChild(leg);
+}
+
+/* --------------------------------- confidence vs measured error (holdout) */
+/* The project's central finding, drawn. Every prediction sits in a narrow band
+ * of confidence while its ACTUAL error varies by a factor of two. If the score
+ * were informative the cloud would slope down to the right; it does not. */
+export function drawConfidenceVsError(container, rows, tip){
+  container.innerHTML = '';
+  const pts = rows.filter(r => isFinite(r.iptm) && isFinite(r.bb));
+  if (pts.length < 3) return;
+
+  const w = container.clientWidth || 380, h = 250, padL = 44, padB = 36, padT = 16;
+  const pw = w - padL - 16, ph = h - padB - padT;
+
+  // Confidence axis is deliberately NOT zoomed to the data: 0.97-0.99 stretched
+  // across the panel would manufacture a spread that is not there. Show the
+  // top tenth of the scale and let the clustering be the message.
+  const x0 = 0.90, x1 = 1.0;
+  const y1 = Math.max(2.0, Math.max(...pts.map(p => p.bb)) * 1.1);
+  const X = v => padL + (v - x0) / (x1 - x0) * pw;
+  const Y = v => padT + (1 - v / y1) * ph;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+  for (const g of [0, 0.5, 1, 1.5, 2].filter(g => g <= y1)){
+    svg.appendChild(el('line', {x1:padL, x2:padL + pw, y1:Y(g), y2:Y(g),
+                                stroke:INK.grid, 'stroke-width':1, opacity:.6}));
+    svg.appendChild(text(padL - 6, Y(g) + 3, g.toFixed(1), {anchor:'end', size:9}));
+  }
+  for (const g of [0.90, 0.925, 0.95, 0.975, 1.0])
+    svg.appendChild(text(X(g), h - 20, g.toFixed(3).replace(/0+$/,'').replace(/\.$/,''),
+                         {anchor:'middle', size:9}));
+
+  // The 2 A line: below it, a prediction is useful for our purpose.
+  if (y1 >= 2){
+    svg.appendChild(el('line', {x1:padL, x2:padL + pw, y1:Y(2), y2:Y(2),
+                                stroke:STATUS.warning, 'stroke-width':1,
+                                'stroke-dasharray':'4 3', opacity:.7}));
+    svg.appendChild(text(padL + pw, Y(2) - 5, '2 Å', {anchor:'end', size:9,
+                                                      fill:STATUS.warning}));
+  }
+
+  // The span the confidence score actually occupies -- the whole point.
+  const ix = pts.map(p => p.iptm);
+  const lo = Math.min(...ix), hi = Math.max(...ix);
+  svg.appendChild(el('rect', {x:X(lo), y:padT, width:Math.max(2, X(hi) - X(lo)),
+                              height:ph, fill:'#2a78d6', opacity:.07}));
+  svg.appendChild(text((X(lo) + X(hi)) / 2, padT - 4,
+                       `every prediction lands in ${(hi - lo).toFixed(3)} of ipTM`,
+                       {anchor:'middle', size:9, fill:INK.secondary}));
+
+  for (const p of pts){
+    const held = !!p.post;
+    const c = el('circle', {cx:X(p.iptm), cy:Y(p.bb), r:held ? 5 : 4.5,
+      fill: held ? '#2a78d6' : 'none',
+      stroke: held ? INK.surface : INK.secondary,
+      'stroke-width': held ? 1.5 : 1.5,
+      'stroke-dasharray': held ? '' : '3 2',
+      opacity: held ? .95 : .8, style:'cursor:pointer'});
+    c.addEventListener('mousemove', ev => tip(ev,
+      `<b>${p.pdb}</b>${p.pep} · deposited ${p.dep}`
+      + `ipTM ${p.iptm.toFixed(3)} · backbone RMSD ${p.bb.toFixed(2)} Å`
+      + `<i>${held ? 'held out — after the training cutoff'
+                   : 'before the 2023-06-01 cutoff; may be memorised'}</i>`));
+    c.addEventListener('mouseleave', () => tip(null));
+    svg.appendChild(c);
+  }
+
+  svg.appendChild(text(padL + pw / 2, h - 4,
+                       'model confidence (ipTM) — higher should mean better',
+                       {anchor:'middle', size:9.5}));
+  svg.appendChild(text(padL, 10, 'measured error vs crystal (Å)', {size:9.5}));
+  container.appendChild(svg);
+}
+
+/* ------------------------------------------------------- peptide track */
+/* One box per residue. Which positions the T-cell can actually see is the
+ * single most load-bearing fact about a candidate, and a sequence string does
+ * not carry it. Anchors point INTO the groove; the receptor never sees them. */
+export function drawPeptideTrack(container, peptide, wt, mutOffset){
+  container.innerHTML = '';
+  const n = peptide.length;
+  if (!n) return;
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;gap:3px;align-items:flex-end;flex-wrap:nowrap';
+
+  for (let i = 0; i < n; i++){
+    const anchor = (i === 1 || i === n - 1);
+    const mutated = (i === mutOffset);
+    const changed = wt && wt[i] && wt[i] !== peptide[i];
+    const cell = document.createElement('div');
+    cell.style.cssText = 'flex:1;min-width:0;text-align:center';
+    const face = mutated || changed ? '#ffa657' : anchor ? '#6e7681' : INK.primary;
+    const bg = mutated || changed ? 'rgba(255,166,87,.14)'
+             : anchor ? 'rgba(110,118,129,.12)' : 'transparent';
+    cell.innerHTML = `
+      <div style="font-size:8.5px;color:${INK.secondary};letter-spacing:.04em">${
+        i === 0 ? 'P1' : i === n - 1 ? 'PΩ' : 'P' + (i + 1)}</div>
+      <div style="font-family:ui-monospace,monospace;font-size:15px;font-weight:650;
+                  color:${face};background:${bg};border:1px solid ${
+        mutated || changed ? '#7a4a20' : anchor ? INK.grid : 'transparent'};
+                  border-radius:5px;padding:5px 0;margin-top:2px">${peptide[i]}</div>
+      ${wt && changed ? `<div style="font-family:ui-monospace,monospace;font-size:10px;
+                  color:${INK.secondary};margin-top:2px">${wt[i]}</div>` : ''}
+      <div style="font-size:7.5px;color:${anchor ? '#6e7681' : '#3f8f5f'};
+                  margin-top:3px;letter-spacing:.03em">${
+        anchor ? 'anchor' : 'TCR'}</div>`;
+    wrap.appendChild(cell);
+  }
+  container.appendChild(wrap);
+}
+
+/* ------------------------------------------------ ipTM band slider (RCSB idiom) */
+/* Three bare mono numbers cannot answer "is that good?". The wwPDB validation
+ * slider answers it by putting the value against a named reference scale with
+ * the poles labelled. AlphaFold 3 supplies the bands; this draws them.
+ *
+ * The grey zone is labelled with AlphaFold's own words, because "we do not
+ * know" is the honest reading of nearly every ipTM this project produces. */
+export function drawIptmBand(container, value, opts = {}){
+  container.innerHTML = '';
+  const w = container.clientWidth || 300, h = 46, padL = 4, padR = 4;
+  const bw = w - padL - padR, trackY = 14, trackH = 9;
+  const X = v => padL + v * bw;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+  for (const b of IPTM_BANDS){
+    svg.appendChild(el('rect', {x:X(b.lo), y:trackY, width:X(b.hi) - X(b.lo),
+                                height:trackH, fill:b.hex, opacity:.42}));
+    if (X(b.hi) - X(b.lo) > 46)
+      svg.appendChild(text((X(b.lo) + X(b.hi)) / 2, trackY - 4, b.label,
+                           {anchor:'middle', size:8.5,
+                            fill: b.label === 'grey zone' ? INK.primary : INK.secondary,
+                            weight: b.label === 'grey zone' ? 600 : 400}));
+  }
+  for (const g of [0, 0.6, 0.8, 1.0]){
+    svg.appendChild(el('line', {x1:X(g), x2:X(g), y1:trackY, y2:trackY + trackH + 3,
+                                stroke:INK.grid, 'stroke-width':1}));
+    svg.appendChild(text(X(g), trackY + trackH + 13, g.toFixed(1),
+                         {anchor: g === 0 ? 'start' : g === 1 ? 'end' : 'middle', size:8.5}));
+  }
+  const v = Math.max(0, Math.min(1, value));
+  // Marker is a notch through the track, not a dot on it: at 0.99 a dot would
+  // sit half outside the bar.
+  svg.appendChild(el('rect', {x:X(v) - 1.5, y:trackY - 3, width:3, height:trackH + 6,
+                              rx:1.5, fill:INK.primary}));
+  if (opts.note)
+    svg.appendChild(text(padL, h - 1, opts.note, {size:8.5, fill:INK.secondary}));
+  container.appendChild(svg);
+}
+
+/* --------------------------------------- pLDDT distribution (AFDB pattern) */
+/* A mean confidence alone is a lie of omission. AlphaFold DB prints the mean
+ * and then, immediately under it, the four-band breakdown behind it. Four
+ * lines, and the mean stops being a lie. */
+export function drawPlddtDistribution(container, values){
+  container.innerHTML = '';
+  const v = values.filter(x => isFinite(x));
+  if (!v.length) return;
+  const counts = PLDDT_BANDS.map(b => ({
+    band: b, n: v.filter(x => x >= b.min && (b.max >= 100 ? true : x < b.max)).length }));
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:3px';
+  wrap.innerHTML = counts.filter(c => c.n).map(c => {
+    const pct = 100 * c.n / v.length;
+    return `<span style="display:flex;align-items:center;gap:7px;font-size:11px;
+                         color:${INK.secondary}">
+      <span style="width:9px;height:9px;border-radius:2px;background:${c.band.hex};flex:none"></span>
+      <span style="font-family:ui-monospace,monospace;color:${INK.primary};
+                   font-variant-numeric:tabular-nums;min-width:44px;text-align:right">${pct.toFixed(1)}%</span>
+      <span>${c.band.label}</span>
+      <span style="opacity:.6;font-size:10px">${c.band.rule}</span>
+    </span>`; }).join('');
+  container.appendChild(wrap);
+}
+
+/* ------------------------------------------------------------- the funnel */
+/* Five equal boxes reading 50 / 1,890 / 13 / 22 / 5 do not encode that 98.8%
+ * of candidates were removed -- and a removal count sitting in a row of
+ * survivor counts reads as if the sequence were 1,890 -> 13 -> 22.
+ *
+ * So: survivors get a log-width bar, removals get an inset negative treatment
+ * and a minus sign, and the attrition is printed between steps. */
+export function drawFunnel(container, steps){
+  container.innerHTML = '';
+  const survivors = steps.filter(s => !s.cut);
+  const top = Math.max(...survivors.map(s => s.n), 1);
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'display:flex;flex-direction:column;gap:5px';
+
+  let prev = null;
+  for (const s of steps){
+    const row = document.createElement('div');
+    if (!s.cut && prev !== null && prev > 0 && s.n < prev){
+      const drop = 100 * (1 - s.n / prev);
+      const d = document.createElement('div');
+      d.style.cssText = `font-size:10px;color:${STATUS.critical};padding:0 0 0 10px;
+                         letter-spacing:.02em;opacity:.9`;
+      d.textContent = `↓ −${drop.toFixed(drop >= 99 ? 1 : 0)}%`;
+      wrap.appendChild(d);
+    }
+    // Log width: 1,890 against 5 on a linear scale renders the shortlist as
+    // a hairline, which is true but unreadable.
+    const frac = s.cut ? 0.22
+               : Math.max(0.06, Math.log10(Math.max(1, s.n) + 1) / Math.log10(top + 1));
+    row.style.cssText = 'position:relative;border-radius:6px;overflow:hidden;' +
+      `border:1px solid ${s.cut ? 'rgba(208,59,59,.35)' : 'rgba(255,255,255,.10)'};` +
+      `background:${s.cut ? 'rgba(208,59,59,.07)' : 'rgba(255,255,255,.03)'}`;
+    row.innerHTML = `
+      <div style="position:absolute;inset:0 auto 0 0;width:${(frac * 100).toFixed(1)}%;
+                  background:${s.cut ? 'rgba(208,59,59,.13)'
+                                     : s.final ? 'rgba(12,163,12,.16)' : 'rgba(42,120,214,.16)'}"></div>
+      <div style="position:relative;display:flex;align-items:baseline;gap:9px;padding:7px 11px">
+        <span style="font-family:ui-monospace,monospace;font-size:17px;font-weight:650;
+                     font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+                     min-width:5ch;text-align:right;
+                     color:${s.cut ? STATUS.critical : s.final ? STATUS.good : INK.primary}">${
+        s.cut ? '−' : ''}${s.n.toLocaleString()}</span>
+        <span style="font-size:11.5px;color:${INK.secondary}">${s.label}</span>
+        ${s.note ? `<span style="margin-left:auto;font-size:10.5px;color:${INK.secondary};
+                                 opacity:.8">${s.note}</span>` : ''}
+      </div>`;
+    wrap.appendChild(row);
+    if (!s.cut) prev = s.n;
+  }
+  container.appendChild(wrap);
 }
