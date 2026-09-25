@@ -210,6 +210,40 @@ What that means concretely:
 - No web fonts, no analytics, no external icon sets.
 - Chain styling uses **MolViewSpec** (`loadMvsData`) rather than imperative Mol\* calls, which keeps the viewer config declarative and diffable.
 
+### Design, and where it comes from
+
+The interface is not styled to taste. Two research passes read the **live DOM** of AlphaFold DB, AlphaFold Server, RCSB PDB, PDBe, the EMBL-EBI Visual Framework and Benchling's production stylesheet, and the conventions below are measured values from those pages rather than approximations of them.
+
+| Decision | Source |
+|---|---|
+| **pLDDT bands `#0053D6` / `#65CBF3` / `#FFDB13` / `#FF7D45`** | Sampled from the AlphaFold DB legend and cross-checked against Mol\*'s `plddt.ts` — the same values our own 3D viewer paints the cartoon with, so the chart and the picture mean the same thing. *(Not the ColabFold values, which are close enough to look like a typo of these.)* |
+| **ipTM bands, including the named grey zone** | AlphaFold 3's own, verbatim from the AlphaFold Server FAQ: > 0.8 confident, 0.6–0.8 *"a grey zone where predictions could be correct or incorrect"*, < 0.6 likely failed |
+| **Neutral-grey surfaces, alpha-white hairlines, desaturated accent** | AlphaFold Server's measured tokens (`#131314` page, `rgba(255,255,255,.1)` borders, `#A8C7FA` accent) — it is DeepMind's own dark structural-biology product |
+| **Detail column gets two-thirds** | RCSB's `col-lg-4` / `col-lg-8` split |
+| **Value outside the bar, poles labelled** | The wwPDB validation slider, which turns a raw number into a position against a named reference population |
+| **`tabular-nums` everywhere numeric; identity column by ink strength, not weight; `12px 24px 12px 14px` cell padding** | Benchling's production CSS |
+| **Discrete bins, and value + uncertainty in one mark** | Correll *et al.*, CHI 2018 — superimposed beats juxtaposed (p = 0.02), discrete beats continuous (p < 0.01) |
+
+**A correctness bug this research found in our own CSS.** Seven rules applied `text-transform: uppercase`. Our HTML correctly authored `nM`, `ipTM`, `pLDDT`, `pTM`; the page rendered `NM`, `IPTM`, `PLDDT`, `PTM`. **`nM` is nanomolar. `NM` is not a unit.** The lower-case prefixes in pLDDT (*predicted*) and ipTM (*interface*) are the load-bearing part of the name. Exactly one class may now uppercase, and it may never touch a unit, a metric name, a peptide, a gene, an allele or an accession.
+
+### What each panel has to earn
+
+Every chart answers a question that has been put to us, or that we expect:
+
+| Panel | The question |
+|---|---|
+| **Funnel** | "How much does it actually remove?" — attrition is printed between steps (−98.8%), and removals are visually distinct from survivors |
+| **Screening landscape** | "Is your shortlist a lucky corner?" — every scored peptide, with the triage rule drawn as the threshold lines |
+| **Candidate table** | "What did it pick, and by what key?" — sortable, with the ranking key and the truncation stated in a caption |
+| **Selected candidate** | "Can a T-cell even see the mutation?" — a per-residue track marking anchor vs TCR-facing positions |
+| **ipTM band** | "Is 0.99 good?" — against AlphaFold 3's own scale, at two decimals, because our own data records a mismatched pair at 0.988 |
+| **ROC, both benchmarks** | "Does the screen work?" — and the sub-diagonal region is shaded, so TESLA's agretopicity curve is visibly below chance |
+| **Enrichment bars** | "Which rules did you try?" — all of them, including the one we shipped that scores 0.96× |
+| **Confidence vs error** | "Isn't 1.41 Å just memorisation, and shouldn't you rank on confidence?" — held-out only, and the cloud is flat |
+| **pLDDT distribution** | "What's behind that mean?" — the four-band breakdown, AlphaFold DB's pattern |
+| **MD traces** | "Does the pose survive body temperature?" — with the caveats attached to the artefact, not to a paragraph elsewhere |
+| **Throughput** | "Does this scale?" — measured bars solid, projections hollow and dashed, so the distinction survives a photograph of a slide |
+
 ### Endpoints
 
 | Endpoint | Returns |

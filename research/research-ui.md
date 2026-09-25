@@ -58,13 +58,16 @@ document rather than a measurement it is marked as such.
    independently flags that uppercase *"wrecks scanning of mixed-case column names like pLDDT"*.
    Seven CSS rules, one afternoon. §5.1, §6.1
 
-2. **The colour language our app is built on inverts on the background our app uses.** Measured: the
-   canonical "very high confidence" band `#0053D6` scores **2.84 : 1 on our `#0d1117`** — below the 3 : 1
-   non-text floor — while "low confidence" `#FFDB13` blazes at 13.62 : 1. On white those numbers are
-   6.55 : 1 and 1.36 : 1, the correct way round. **Today our interface pulls the eye to the worst part of
-   every model.** Fix it by going light (recommended — every structural-biology database is light, and
-   both UCSC and cBioPortal rejected dark *in writing*), or by overriding the four hexes in dark mode
-   (`#6E9BF2 / #7FD4F5 / #E5C33F / #F2895A`). Doing neither is not an option. §4.2
+2. **The colour language the app is built on inverts on the background the app uses — and this is live
+   in `fc44431` right now.** The redesign committed mid-research adopted the canonical pLDDT hexes
+   *and* a `#131314` ground. Computed against that exact value: "very high confidence" `#0053D6` scores
+   **2.84 : 1 — below the 3 : 1 non-text floor** — while "low confidence" `#FFDB13` blazes at
+   **13.61 : 1**. On white the same four are 6.55 / 1.84 / 1.36 / 2.54, the correct way round.
+   **As shipped, the interface pulls the eye to the worst part of every model.** Fix by going light
+   (recommended — every structural-biology database is light, pdbe-molstar's own dark default is
+   overridden by every EMBL-EBI deployment, and both UCSC and cBioPortal rejected dark *in writing*), or
+   by swapping the four hexes for `#6E9BF2 / #7FD4F5 / #E5C33F / #F2895A` (6.75 / 11.18 / 10.80 / 7.52 : 1
+   on `#131314`). Doing neither is not an option. §4.2, §6 preamble
 
 3. **Give the confidence numbers a reference frame — steal the wwPDB validation slider.** Three bare
    mono numbers (`0.991 / 0.984 / 0.989`) cannot answer "is that good?", and at three decimals they
@@ -1189,7 +1192,34 @@ added behind it.
 
 ## 6. What to change in NeoFold Edge
 
-### 6.0 What we have now, measured
+> ### ⚠️ Read this first — a live regression in `fc44431`
+>
+> **A UI redesign landed while this research was being written** (commit `fc44431`, 24 Sep 2026 20:37,
+> 860 changed lines in `index.html`, 385 in `charts.js`). It implements much of §6 already: the uppercase
+> rules are down from seven to one, the grid is flipped to `minmax(360px,2fr) minmax(520px,3fr)`,
+> `tabular-nums` appears six times, and the canonical pLDDT hexes are now in both `index.html` and
+> `charts.js`. Good.
+>
+> **But it adopted the canonical palette *and* a dark background — which is the exact failure in §4.2.**
+> The new `--bg` is `#131314`. Computed against it:
+>
+> | Band | Hex | Contrast on `#131314` |
+> |---|---|---|
+> | **Very high (> 90)** | `#0053D6` | **2.84 : 1 — fails the 3 : 1 graphics floor** |
+> | Confident (90–70) | `#65CBF3` | 10.07 : 1 |
+> | **Low (70–50)** | `#FFDB13` | **13.61 : 1 — the brightest thing on screen** |
+> | Very low (< 50) | `#FF7D45` | 7.31 : 1 |
+>
+> On white the same four are 6.55 / 1.84 / 1.36 / 2.54 — the correct way round. **As committed, the
+> confidence colouring is inverted: the band that means "trust this" is the hardest to see, and the band
+> that means "don't" dominates.** Fix by switching to a light ground (§4.2, recommended) or by swapping
+> in `#6E9BF2 / #7FD4F5 / #E5C33F / #F2895A`, which land at 6.75 / 11.18 / 10.80 / 7.52 : 1 on that same
+> `#131314`.
+>
+> The measurements in §6.0 below were taken **before** that commit and describe the previous build. The
+> reasoning in §6.1–§6.6 still applies; check each against the current code before acting.
+
+### 6.0 What we had, measured (pre-`fc44431`)
 
 Read out of the running app at `localhost:8420`, viewport 1440 × 950, after `Run triage`:
 

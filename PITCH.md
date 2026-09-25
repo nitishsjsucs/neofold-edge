@@ -17,7 +17,7 @@ We have three measured numbers nobody can wave away:
 | **1.41 Å** | median structure error on 9 crystals deposited *after* the model's training cutoff |
 | **8.8 s → 64 s** | screen 1,890 candidates, then fold one, entirely offline on the Nano |
 
-And four things we got **wrong and fixed**. Say them out loud. A judge who catches you hiding one is fatal; a judge who hears you volunteer them is convinced.
+And four things we got **wrong and fixed** — of twelve we found and wrote down. Say them out loud. A judge who catches you hiding one is fatal; a judge who hears you volunteer them is convinced.
 
 ---
 
@@ -65,9 +65,9 @@ And four things we got **wrong and fixed**. Say them out loud. A judge who catch
 
 > "And here's the honest part. The structure model gives the normal peptide **the same confidence score** as the tumour one — 0.987 against 0.991. So we don't rank on confidence. We rank on the binding screen, and we measure one contact that was specified in advance from a crystal structure."
 
-### 2:25 — The evidence (45 s)
+### 2:25 — The evidence (35 s)
 
-*(Scroll to "Does the screen actually work?")*
+*(Click the **Does the screen work?** tab.)*
 
 > "This is the panel I'd want to see from anyone claiming a tool like this.
 >
@@ -77,17 +77,29 @@ And four things we got **wrong and fixed**. Say them out loud. A judge who catch
 >
 > For scale: our *predicted* score matches the *experimentally measured* binding affinity in that dataset. Which tells you the ceiling here is the biology, not the predictor."
 
-*(Point at the red row.)*
+*(Point at the red curve dipping below the diagonal, then at the red bar.)*
 
-> "We've left a metric on screen that **failed**. The mutant-versus-normal differential scores below random. We shipped it as a filter early on, and the data says it was worse than chance — so it's an annotation now, not a gate."
+> "We've left two things on screen that **failed**. That red ROC curve crosses *below* the diagonal — the mutant-versus-normal differential is worse than random. And down here is every triage rule we considered, measured: the one we shipped first scores **0.96×**, inside the shaded region. Worse than chance. It's an annotation now, not a gate."
 
-### 3:10 — Scale (25 s)
+### 3:00 — The one that lands (20 s)
+
+*(Click the **Is the structure right?** tab.)*
+
+> "One more, because it's the finding I'd want to be asked about. Nine crystal structures deposited **after** the model's training cutoff — held out, nothing memorised. Median error **1.41 Å**.
+>
+> Now look at the shape of that cloud." *(Point.)* "Every prediction sits inside **0.011** of confidence while the real error spans a **full Ångström**. Correlation minus 0.23. The worst prediction in that set scores *higher* than the best one.
+>
+> That's why nothing in this pipeline ranks on confidence."
+
+### 3:20 — Scale (20 s)
+
+*(Click the **Throughput** tab.)*
 
 > "One candidate takes 64 seconds. Batched, the Nano does **100 an hour**, because the model loads once instead of per job — that's measured, not projected.
 >
 > These are independent jobs, so more Nanos is a work queue, not a rewrite. We only had one, so the multi-node bars are labelled projections."
 
-### 3:35 — Close (25 s)
+### 3:40 — Close (20 s)
 
 > "We are not claiming to make a vaccine. We assemble a construct for a researcher to review, and we'll tell you that BioNTech **terminated** a randomised trial of exactly this modality last month.
 >
@@ -104,14 +116,18 @@ And four things we got **wrong and fixed**. Say them out loud. A judge who catch
 | 0:40 | Click **Run triage** | Results are cached — re-click |
 | 1:25 | Rotate the 3D structure | It's a static file; cannot fail |
 | 1:50 | Switch to wild-type tab | Static file |
-| 2:25 | Scroll to validation panel | Static JSON |
-| 3:10 | Scroll to throughput panel | Static JSON |
+| 2:25 | **Does the screen work?** tab | Static JSON |
+| 3:00 | **Is the structure right?** tab | Static JSON |
+| 3:20 | **Throughput** tab | Static JSON |
 
 **Do not** run a live Boltz prediction on stage. It takes 64 s of silence and the machine has a power fault. The structures are precomputed; say so if asked — *"this was predicted on this machine this morning, in 64 seconds."*
 
 ---
 
 ## The four things we got wrong (volunteer these)
+
+*There are twelve in [docs/SCIENCE.md](docs/SCIENCE.md) §3. These are the four to say out loud.*
+
 
 1. **We shipped a filter that was worse than random.** A 2× mutant-vs-normal threshold, invented rather than cited. Measured at 0.96× enrichment on 1,947 pairs. It's now an annotation, because the differential mostly detects *anchor* mutations — and anchor mutations are the ones T-cells are *least* likely to see.
 2. **Our accuracy claim was 3× optimistic.** Both structures we validated against predate the model's training cutoff. On 9 held-out ones it's 1.41 Å, not 0.42 Å.
@@ -139,6 +155,12 @@ Not cost — moving a whole-exome pair costs about five dollars. It's governance
 
 **"Isn't 1.41 Å just memorisation?"**
 That number is specifically the held-out figure. Everything deposited after the model's June 2023 training cutoff. Our memorised-set number is 0.42 Å, and we quote the worse one.
+
+**"Your MD says the contact is stable — doesn't that support the salt bridge?"**
+No, and we say so in the tool's own output. Generalised-Born implicit solvent over-stabilises salt bridges by 3–4 kcal/mol, and the documented failure is specifically in hydrogens on charged nitrogens — Arg156's guanidinium is exactly the atom type at fault. At 310 K that's a ~130-fold population over-weighting. The contact evidence stands on the crystal comparison and on glycine having no side chain, not on the dynamics.
+
+**"Your three MD replicates agree closely — isn't that reassuring?"**
+It's the opposite. Knapp *et al.* 2018 show that sub-10 ns agreement is the signature of undersampling — the run is too short to explore anywhere else — and that 100 ns is the state of the art for this system class. We're 100× below that floor. The MD can reject an implausible pose; it cannot support a stability claim.
 
 **"What aren't you modelling?"**
 RNA expression of the tumour — worth 11–13 precision points in published work, and the single most serious omission. Also clonality, peptide-MHC stability, TAP transport. We have the list ranked by measured effect size.

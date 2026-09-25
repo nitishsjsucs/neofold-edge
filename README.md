@@ -169,6 +169,22 @@ Two constraints we place on our own headline results are worth knowing before yo
 
 ---
 
+## The dashboard
+
+An offline FastAPI app with a vendored Mol\* viewer. Every convention in it — the pLDDT band colours, the ipTM bands with AlphaFold 3's named *grey zone*, the two-thirds detail split, the validation-slider idiom — is a **measured value** read from the live DOM of AlphaFold DB, AlphaFold Server, RCSB, PDBe and Benchling, not an approximation of them. See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) §6.
+
+The charts that matter:
+
+| | |
+|---|---|
+| **ROC, both benchmarks** | the sub-diagonal region is shaded, so TESLA's agretopicity curve is visibly below chance |
+| **Every triage rule, as enrichment** | including the one we shipped at **0.96×**, in red, inside the shaded zone |
+| **Confidence vs measured error** | the central finding drawn rather than asserted: 0.011 of ipTM spread against 0.99 Å of real error |
+| **Per-residue peptide track** | anchor vs TCR-facing — whether a T-cell can see the mutation at all |
+| **Live outbound-connection count** | reads zero; it is why Mol\* is vendored and `docs_url=None` |
+
+---
+
 ## Quick start
 
 ```bash
