@@ -114,6 +114,17 @@ class SelfProteome:
         # O(n_proteins) per peptide instead of O(log n).
         self._starts = [o for o, _ in offsets]
 
+    def warm(self, lengths=(8, 9, 10, 11)) -> None:
+        """Pre-build the seed indexes.
+
+        Building one costs a pass over ~10 M positions, which lands on the
+        first near-self search of a session -- i.e. on a demo click. Calling
+        this at startup moves that cost to where nobody is watching.
+        """
+        self._load()
+        for k in lengths:
+            self._seeds(k)
+
     @property
     def n_proteins(self) -> int:
         self._load()

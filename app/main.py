@@ -19,6 +19,7 @@ from fastapi.staticfiles import StaticFiles
 
 from neofold.pipeline import DISCLAIMER, run_triage
 from neofold.screen import PeptideScreen, triage
+from neofold.expression import NormalExpression
 from neofold.selfsim import SelfProteome
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -34,6 +35,27 @@ _cache: dict[str, dict] = {}
 # Vendored reviewed human proteome for the self-similarity filter.
 _proteome_path = ROOT / "data" / "reference" / "human_sp.fasta.gz"
 _proteome = SelfProteome(_proteome_path) if _proteome_path.exists() else None
+
+_gtex_path = ROOT / "data" / "reference" / "gtex_median_tpm.gct.gz"
+_expression = NormalExpression(_gtex_path) if _gtex_path.exists() else None
+
+
+@app.on_event("startup")
+def _warm_caches() -> None:
+    """Pay the index-build and model-load costs before anyone clicks."""
+    import threading
+
+    def warm():
+        try:
+            _screen.predictor            # ~2.5 s MHCflurry load
+            if _proteome is not None:
+                _proteome.warm()         # ~9 s of seed indexes
+            if _expression is not None:
+                _expression.check("KRAS")
+        except Exception:
+            pass                         # warming is an optimisation, not a requirement
+
+    threading.Thread(target=warm, daemon=True).start()
 
 
 @app.get("/", response_class=HTMLResponse)
@@ -103,7 +125,7 @@ def triage_endpoint(payload: dict) -> JSONResponse:
     t0 = time.perf_counter()
     report = run_triage(str(vcf_path), str(ROOT / "data/sequences/proteins.fasta"),
                         allele=allele, top_n=top_n, screen=_screen,
-                        proteome=_proteome)
+                        proteome=_proteome, expression=_expression)
     out = report.as_dict()
     out["wall_seconds"] = round(time.perf_counter() - t0, 2)
     out["cached"] = False

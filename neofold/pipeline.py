@@ -127,19 +127,20 @@ def run_triage(
             self_matches[r.peptide] = proteome.check(r.peptide, near=False)
         timings["self_exact"] = time.perf_counter() - t0
 
-        presented = [r for r in results
-                     if triage(r, self_matches.get(r.peptide))[0] != "self peptide"
-                     and r.presentation_score >= MIN_PRESENTATION
-                     and r.affinity_nm <= WEAK_BINDER_NM]
+        # Only the shortlist needs the 1-mismatch search. It used to run over
+        # every presented candidate, from when dissimilarity-to-self was part
+        # of the qualification rule. It is now a flag on the shortlist, so
+        # scoring 22 candidates at ~1.3 s each was ~11 s of wasted demo time.
+        for_near = rank_for_structure(results, top_n, self_matches)
         t0 = time.perf_counter()
-        for r in presented:
+        for r in for_near:
             # Exclude the candidate's own wild-type: every missense neoepitope
             # is trivially one mismatch from it, so counting it would make the
             # flag meaningless.
             self_matches[r.peptide] = proteome.check(
                 r.peptide, near=True, wild_type=r.wt_peptide)
         timings["self_near"] = time.perf_counter() - t0
-        timings["_n_presented"] = len(presented)
+        timings["_n_near_searched"] = len(for_near)
 
     # Off-tumour safety annotation on the shortlist. A FLAG, never a gate:
     # high normal-tissue expression warns, low expression never qualifies.
