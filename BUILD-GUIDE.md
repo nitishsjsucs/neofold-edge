@@ -601,6 +601,28 @@ Adding 429 residues of TCR did not degrade the pMHC core — the peptide is *mor
 
 ---
 
+## 6E-2. The local LLM summary — and why it needs two guardrails
+
+A language model is used for exactly one thing: turning a row of numbers into a paragraph. It computes nothing and decides nothing. It runs on the Nano via Ollama (qwen3:8b, 100% GPU), in about **5–8 seconds** per candidate.
+
+**Guardrail 1 — numeric verification.** Every numeric token in the output is checked against the facts that went in. A model that invents an affinity fails and the summary is rejected.
+
+**Guardrail 2 — claim verification, which we added only after the first run failed.** The first summary passed numeric verification and still asserted three things the evidence does not license:
+
+| What it wrote | Why it is wrong |
+|---|---|
+| "a differential index of 23.5, **enhancing its immunogenic potential**" | DAI does not do that — we measured AUC 0.592 and 0.412 |
+| "the percentile rank highlights its **rarity within the human proteome**" | percentile rank has nothing to do with proteome rarity; it conflated two facts |
+| "ipTM of 0.991 **supports the reliability** of the interaction" | contradicted by our own five demonstrations |
+
+Every number was correct. Every interpretation was wrong. So there is now a banned-claims check, and the three phrases above are regression tests quoted verbatim.
+
+**The disclaimer is concatenated by code, never generated**, so it cannot drift or be paraphrased away — and a deterministic template fallback means the demo does not depend on the model being up.
+
+This is worth showing rather than hiding: *"we don't trust the language model either, and here is the check that caught it."*
+
+---
+
 ## 6F. The next step: polyepitope construct assembly
 
 Selecting epitopes is not the end of the workflow. The next step in the real clinical pipeline is assembling them into a construct — what BioNTech's BNT122 and Moderna's mRNA-4157 actually do.
