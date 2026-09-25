@@ -503,14 +503,19 @@ def validation() -> dict:
     studies, each with an experimental T-cell assay outcome, 53 positive.
     Base rate 2.72%.
     """
-    path = ROOT / "benchmarks" / "screen_validation.json"
-    pk = ROOT / "benchmarks" / "precision_at_k.json"
+    bench = ROOT / "benchmarks"
+    path = bench / "screen_validation.json"
     if not path.exists():
         return {"available": False}
     d = json.loads(path.read_text())
     out = {"available": True, **d}
-    if pk.exists():
-        out["precision_at_k"] = json.loads(pk.read_text())
+    for name, fn in (("precision_at_k", "precision_at_k.json"),
+                     ("auc", "auc.json"),
+                     ("tesla", "tesla_validation.json"),
+                     ("structures", "holdout_structures.json")):
+        f = bench / fn
+        if f.exists():
+            out[name] = json.loads(f.read_text())
     out["reading"] = (
         "Enrichment is the honest headline: at a 2.72% base rate, raw precision "
         "looks uniformly poor and hides the differences between rules. Ranking "

@@ -310,3 +310,45 @@ export function drawMdTraces(container, md, tip, key = 'contacts'){
                        : 'peptide RMSD from starting pose (Å)', {size:9.5}));
   container.appendChild(svg);
 }
+
+/* --------------------------------------------- precision at depth vs base */
+export function drawPrecisionAtK(container, series, baseRate, tip){
+  container.innerHTML = '';
+  const ks = [10,25,50,100];
+  const w = container.clientWidth || 380, h = 200, padL = 40, padB = 34;
+  const pw = w - padL - 14, ph = h - padB - 18;
+  const maxY = Math.max(baseRate*1.2, ...series.flatMap(s => s.points.map(p => p.precision))) * 1.15;
+  const X = (i, n, j) => padL + (i + 0.5)*(pw/ks.length) - (n-1)*7 + j*14;
+  const Y = v => 18 + (1 - v/maxY)*ph;
+
+  const svg = el('svg', {width:w, height:h, style:'display:block;overflow:visible'});
+  for(const g of [0, maxY/2, maxY]){
+    svg.appendChild(el('line', {x1:padL, x2:padL+pw, y1:Y(g), y2:Y(g),
+                                stroke:INK.grid, 'stroke-width':1}));
+    svg.appendChild(text(padL-6, Y(g)+3, `${(g*100).toFixed(0)}%`, {anchor:'end', size:9}));
+  }
+  // The base rate is the line everything is judged against.
+  svg.appendChild(el('line', {x1:padL, x2:padL+pw, y1:Y(baseRate), y2:Y(baseRate),
+                              stroke:STATUS.critical, 'stroke-width':1.5, 'stroke-dasharray':'4 3'}));
+  svg.appendChild(text(padL+pw, Y(baseRate)-5, `base rate ${(baseRate*100).toFixed(1)}%`,
+                       {anchor:'end', size:9, fill:STATUS.critical}));
+
+  ks.forEach((k, i) => {
+    series.forEach((s, j) => {
+      const pt = s.points.find(p => p.k === k);
+      if(!pt) return;
+      const x = X(i, series.length, j), y = Y(pt.precision);
+      const bw = 12;
+      const r = el('rect', {x:x-bw/2, y, width:bw, height:Y(0)-y, rx:3,
+                            fill:s.colour, style:'cursor:pointer'});
+      r.addEventListener('mousemove', ev => tip(ev,
+        `<b>${(pt.precision*100).toFixed(0)}% precision</b>${s.label} · top ${k}`
+        + `<i>${pt.hits}/${k} true responders · ${(pt.precision/baseRate).toFixed(1)}× base rate</i>`));
+      r.addEventListener('mouseleave', () => tip(null));
+      svg.appendChild(r);
+    });
+    svg.appendChild(text(X(i, 1, 0), Y(0)+15, `top ${k}`, {anchor:'middle', size:9.5}));
+  });
+  svg.appendChild(text(padL, 10, 'precision = fraction that are true T-cell responders', {size:9.5}));
+  container.appendChild(svg);
+}
