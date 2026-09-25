@@ -190,6 +190,25 @@ ipTM is a self-reported score, and §6 shows it is untrustworthy here. So I meas
 
 \* once the MSA is cached; the 132 s run includes the one-time online fetch.
 
+### ⚠️ Held-out accuracy: our anchors were optimistic
+
+Both structures we originally validated against — **6ULN (2020)** and **3GSO (2009)** — predate Boltz-2's **2023-06-01 training cutoff**, so they may be memorised. We tested that by predicting pMHC structures deposited *after* the cutoff.
+
+| Set | n | Median peptide backbone RMSD | Range | sub-1 Å |
+|---|---|---|---|---|
+| Our original anchors (pre-cutoff) | 2 | **0.42 Å** | 0.32–0.51 | 2/2 |
+| **Held out (post-cutoff)** | **6** | **1.11 Å** | 0.87–1.72 | 3/6 |
+
+**Held-out accuracy is ~2.6× worse.** Not catastrophic — the literature warns of 0.92 Å → 4.59 Å degradation across this boundary and we did not see that — but our headline was materially optimistic.
+
+**Quote the held-out number.** *"Median 1.11 Å peptide backbone RMSD on six pMHC structures deposited after the model's training cutoff."* Sub-Ångström on the anchors is a training-set result and should be labelled as one.
+
+Two of the held-out cases are directly relevant: **8VJZ** is wild-type KRAS `VVVGAGGVGK` (0.88 Å) and **8RNI** is KRAS G12V `VVVGAVGVGK` (0.98 Å).
+
+**A fifth demonstration that confidence does not track accuracy.** Across the held-out set, ipTM spans **0.978–0.988** — a range of 0.011 — while the actual error spans **0.87–1.72 Å**. The best and worst predictions are separated by 0.85 Å of real error and 0.008 of ipTM.
+
+---
+
 **A second, independent validation.** The CMV epitope `NLVPMVATV` on **HLA-A\*02:01** against crystal **3GSO**: MHC CA **0.33 Å**, peptide backbone **0.321 Å**. Different allele, different deposition, same sub-Ångström result — much harder to dismiss as luck than a single case.
 
 | Case | Crystal | Peptide backbone RMSD |
