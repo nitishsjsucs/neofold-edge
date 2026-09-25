@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="300" viewBox="0 0 920 300" role="img">
+<rect width="920" height="300" fill="#ffffff"/>
+<text x="460" y="40" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="14" font-weight="650" fill="#1f2328" text-anchor="middle" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">One run, end to end</text>
+<text x="460" y="62" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="400" fill="#636c76" text-anchor="middle" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">segment width is proportional to measured wall time</text>
+<rect x="40" y="118" width="76.36363636363637" height="52" fill="#dafbe1" stroke="#2da44e" stroke-width="1.25"/>
+<rect x="116.36363636363637" y="118" width="555.3719008264463" height="52" fill="#eae5ff" stroke="#8250df" stroke-width="1.25"/>
+<text x="394.04958677685954" y="144.0" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="middle" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">64 s</text>
+<rect x="671.7355371900827" y="118" width="173.55371900826447" height="52" fill="#eae5ff" stroke="#8250df" stroke-width="1.25"/>
+<text x="758.5123966942149" y="144.0" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="middle" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">~20 s</text>
+<rect x="845.2892561983472" y="118" width="34.710743801652896" height="52" fill="#eae5ff" stroke="#8250df" stroke-width="1.25"/>
+<path d="M 40 186 L 880 186" stroke="#d0d7de" stroke-width="1"/>
+<text x="40" y="202" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="400" fill="#636c76" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">0 s</text>
+<text x="880" y="202" font-family="ui-monospace,SFMono-Regular,'SF Mono',Menlo,Consolas,monospace" font-size="11" font-weight="400" fill="#636c76" text-anchor="end" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">≈ 97 s</text>
+<rect x="40.0" y="234" width="11" height="11" rx="3" ry="3" fill="#dafbe1" stroke="#2da44e" stroke-width="1.25" opacity="1.0"/>
+<text x="59.0" y="240" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">Screen</text>
+<text x="59.0" y="257" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="400" fill="#636c76" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">1,890 peptides · 8.8 s</text>
+<rect x="250.0" y="234" width="11" height="11" rx="3" ry="3" fill="#eae5ff" stroke="#8250df" stroke-width="1.25" opacity="1.0"/>
+<text x="269.0" y="240" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">Fold</text>
+<text x="269.0" y="257" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="400" fill="#636c76" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">383 residues · 64 s</text>
+<rect x="460.0" y="234" width="11" height="11" rx="3" ry="3" fill="#eae5ff" stroke="#8250df" stroke-width="1.25" opacity="1.0"/>
+<text x="479.0" y="240" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">Evidence</text>
+<text x="479.0" y="257" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="400" fill="#636c76" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">contact + MD · ~20 s</text>
+<rect x="670.0" y="234" width="11" height="11" rx="3" ry="3" fill="#eae5ff" stroke="#8250df" stroke-width="1.25" opacity="1.0"/>
+<text x="689.0" y="240" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="12.5" font-weight="650" fill="#1f2328" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">Explain</text>
+<text x="689.0" y="257" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="400" fill="#636c76" text-anchor="start" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">qwen3:8b · 4 s</text>
+<text x="460" y="96" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="11" font-weight="400" fill="#636c76" text-anchor="middle" opacity="1.0" letter-spacing="0.0" dominant-baseline="middle">a tumour producing 22 candidates is ~13 minutes of GPU time</text>
+</svg>

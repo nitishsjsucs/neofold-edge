@@ -48,16 +48,12 @@ Rosie's case works as a proof that the *idea* is sound. It does not scale, for f
 
 It takes the file a sequencing lab gives you — a list of the mutations in a tumour — and produces a short, ranked, explained list of the peptide fragments most worth testing in a laboratory.
 
-```mermaid
-flowchart LR
-    A["<b>Tumour variant file</b><br/>what the sequencer gives you<br/><i>50 mutations</i>"]
-    B["<b>NeoFold Edge</b><br/>one desk-side box<br/><i>offline</i>"]
-    C["<b>Ranked shortlist</b><br/>with the evidence<br/>for each one<br/><i>5 candidates</i>"]
-    A --> B --> C
-    style A fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    style B fill:#eeedfe,stroke:#7f77dd,color:#26215c
-    style C fill:#e1f5ee,stroke:#1d9e75,color:#04342c
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-overview.dark.svg">
+  <img alt="How a tumour variant file becomes a ranked shortlist" src="docs/img/diagram-overview.light.svg" width="100%">
+</picture>
+</div>
 
 ### The analogy that makes this concrete
 
@@ -85,30 +81,12 @@ Your genome identifies you more precisely than your fingerprint, and unlike a pa
 
 So the moment a tumour/normal sequencing file leaves a hospital, it stops being a computation and becomes a **regulated disclosure**:
 
-```mermaid
-flowchart TB
-    subgraph CLOUD["☁️ Cloud path — the file has to leave the building"]
-        direction TB
-        c1["Tumour + normal<br/>sequencing data"] --> c2["Data Use<br/>Certification"]
-        c2 --> c3["Data Access Committee<br/>review"]
-        c3 --> c4["Institutional<br/>signing official"]
-        c4 --> c5["Business Associate<br/>Agreement with the vendor"]
-        c5 --> c6["Transfer"]
-        c6 --> c7["Inference"]
-        c7 --> c8["Vendor now holds<br/>an identifiable genome"]
-    end
-    subgraph EDGE["🔒 NeoFold Edge — the file never moves"]
-        direction TB
-        e1["Tumour + normal<br/>sequencing data"] --> e2["Inference<br/><i>on the institution's<br/>own device, air-gapped</i>"]
-        e2 --> e3["Shortlist"]
-    end
-    classDef bad fill:#fbe3da,stroke:#d85a30,color:#4a1b0c
-    classDef good fill:#d6f2e6,stroke:#1d9e75,color:#04342c
-    class c1,c2,c3,c4,c5,c6,c7,c8 bad
-    class e1,e2,e3 good
-    style CLOUD fill:#fdf4f0,stroke:#d85a30,color:#4a1b0c
-    style EDGE fill:#f2faf7,stroke:#1d9e75,color:#04342c
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-governance.dark.svg">
+  <img alt="Cloud path versus NeoFold Edge: eight governance steps against one" src="docs/img/diagram-governance.light.svg" width="100%">
+</picture>
+</div>
 
 **Those boxes on the left are not paperwork. They are weeks.** And weeks are the thing the field says it does not have — for a patient with an aggressive tumour, the clock that matters runs from biopsy to treatment, and the peer-reviewed benchmark for a personalised vaccine is a **median of 9.4 weeks from surgery to first dose**. Every approval step competes with the patient's disease.
 
@@ -145,23 +123,12 @@ A tumour cell is one of your own cells with a corrupted instruction manual. Most
 
 Five gates have to open, in order:
 
-```mermaid
-flowchart LR
-    M["<b>1 · Mutation</b><br/>the typo happens"]
-    P["<b>2 · Protein</b><br/>the typo gets<br/>printed"]
-    C["<b>3 · Processing</b><br/>the page is<br/>shredded"]
-    H["<b>4 · Presentation</b><br/>a shred is pinned<br/>to the noticeboard"]
-    T["<b>5 · Recognition</b><br/>a guard walks past<br/>and reads it"]
-    Y(["<b>Neoantigen</b>"])
-    M --> P --> C --> H --> T --> Y
-
-    style M fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    style P fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    style C fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    style H fill:#e1f5ee,stroke:#1d9e75,color:#04342c
-    style T fill:#faece7,stroke:#d85a30,color:#4a1b0c
-    style Y fill:#fdf9c4,stroke:#b8a70a,color:#40390a
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-gates.dark.svg">
+  <img alt="The five gates between a mutation and an immune response" src="docs/img/diagram-gates.light.svg" width="100%">
+</picture>
+</div>
 
 Every cell in your body runs a **noticeboard** — an HLA molecule — displaying shredded fragments of whatever it is currently making. Immune cells patrol past and read them. A fragment that looks foreign gets the cell destroyed. That is how your body finds virus-infected cells, and it is how it could find cancer.
 
@@ -184,27 +151,12 @@ So "find the neoantigen" is not a promise any tool can keep. **"Concentrate the 
 
 ## What the pipeline does with that
 
-```mermaid
-flowchart TD
-    A["Tumour variant file<br/><i>VCF · 50 variants</i>"] --> B["Peptide windows<br/><i>1,890 candidates</i>"]
-    B --> C["Self-similarity filter<br/><i>CPU · 20,431 human proteins</i>"]
-    C -->|"13 cut — these are normal human peptides"| X1[ ]
-    C --> D["MHC binding screen<br/><i>CPU · MHCflurry · 8.8 s</i>"]
-    D -->|"22 presented"| E["Structure prediction<br/><i>GB10 GPU · Boltz-2 · 64 s</i>"]
-    E --> F["Evidence layer<br/><i>contact · dynamics · TCR complex</i>"]
-    F --> G["Local LLM summary<br/><i>GB10 GPU · qwen3:8b · 4 s</i>"]
-    G --> H["Construct assembly<br/><i>exhaustive junction search</i>"]
-
-    style X1 fill:none,stroke:none
-    style A fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    style B fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    style C fill:#e1f5ee,stroke:#1d9e75,color:#04342c
-    style D fill:#e1f5ee,stroke:#1d9e75,color:#04342c
-    style E fill:#eeedfe,stroke:#7f77dd,color:#26215c
-    style F fill:#eeedfe,stroke:#7f77dd,color:#26215c
-    style G fill:#eeedfe,stroke:#7f77dd,color:#26215c
-    style H fill:#faece7,stroke:#d85a30,color:#4a1b0c
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-pipeline.dark.svg">
+  <img alt="The NeoFold Edge pipeline, stage by stage, with measured timings" src="docs/img/diagram-pipeline.light.svg" width="100%">
+</picture>
+</div>
 
 **Teal = local CPU. Purple = GB10 GPU. Grey = data. Coral = output.** Nothing leaves the box.
 
@@ -212,31 +164,12 @@ The ordering is deliberate: the cheap test runs first. Screening one peptide cos
 
 One run, end to end, with measured timings:
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as Researcher
-    participant C as CPU stage
-    participant P as Human proteome
-    participant G as GB10 GPU
-    participant L as qwen3:8b
-
-    U->>C: variants.vcf + HLA type
-    C->>C: apply mutations → 1,890 peptide windows
-    C->>P: exact search, 20,431 proteins
-    P-->>C: 13 are verbatim self — disqualified
-    C->>C: MHCflurry, mutant AND germline (3,780 predictions)
-    Note over C: 8.8 s · ~430 peptides/s · no GPU needed
-    C-->>U: 22 predicted presented, ranked
-    C->>G: top 5 → Boltz-2
-    G->>G: peptide + HLA α + β2m = 383 residues
-    Note over G: 64 s each · 96% GPU · 38 W
-    G->>G: pre-registered contact Asp3 ↔ Arg156
-    G->>G: OpenMM stability check
-    G->>L: structured facts only
-    L-->>U: paragraph, verified against those facts
-    Note over L: 4 s · rejected if it invents a number<br/>or asserts a banned claim
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-timeline.dark.svg">
+  <img alt="One run end to end: screen 8.8 s, fold 64 s, evidence ~20 s, explain 4 s" src="docs/img/diagram-timeline.light.svg" width="100%">
+</picture>
+</div>
 
 ---
 
@@ -337,25 +270,12 @@ Measured bars solid, projections hollow and dashed — so the distinction surviv
 
 ## Performance on one Nano
 
-```mermaid
-flowchart LR
-    subgraph N["HP ZGX Nano · one device · 38 W peak · fits in a cupboard"]
-        direction TB
-        cpu["<b>20-core Arm</b><br/>Cortex-X925 ×10<br/>Cortex-A725 ×10"]
-        mem["<b>128 GB LPDDR5x</b><br/>coherent unified<br/>273 GB/s"]
-        gpu["<b>Blackwell GPU</b><br/>53.4 TFLOPS bf16 measured<br/>96% util · 46 °C"]
-        cpu <--> mem <--> gpu
-    end
-    S["Screen<br/>1,890 peptides · 8.8 s"] --> cpu
-    B["Boltz-2<br/>383 residues · 64 s"] --> gpu
-    O["OpenMM<br/>4 fs HMR"] --> gpu
-    L["qwen3:8b<br/>100% GPU"] --> gpu
-    classDef hw fill:#e2e0fb,stroke:#7f77dd,color:#26215c
-    classDef job fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    class cpu,mem,gpu hw
-    class S,B,O,L job
-    style N fill:#f6f5fe,stroke:#7f77dd,color:#26215c
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-hardware.dark.svg">
+  <img alt="What runs where on the GB10, and why 128 GB of unified memory matters" src="docs/img/diagram-hardware.light.svg" width="100%">
+</picture>
+</div>
 
 | | Measured |
 |---|---|
@@ -374,17 +294,12 @@ flowchart LR
 
 ### Scaling
 
-```mermaid
-flowchart LR
-    Q["Work queue<br/><i>candidates are<br/>independent jobs</i>"]
-    style Q fill:#e8e8e6,stroke:#888780,color:#2c2c2a
-    Q --> N1["Nano 1<br/><b>100/hr</b><br/>measured"]
-    Q -.-> N2["Nano 2<br/>~200/hr<br/><i>projection</i>"]
-    Q -.-> N4["Nano 4<br/>~400/hr<br/><i>projection</i>"]
-    style N1 fill:#e1f5ee,stroke:#1d9e75,color:#04342c
-    style N2 fill:#f6f6f4,stroke:#888780,stroke-dasharray:5 3,color:#2c2c2a
-    style N4 fill:#f6f6f4,stroke:#888780,stroke-dasharray:5 3,color:#2c2c2a
-```
+<div align="center">
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/img/diagram-scaling.dark.svg">
+  <img alt="Scaling: one measured node, the rest projections" src="docs/img/diagram-scaling.light.svg" width="100%">
+</picture>
+</div>
 
 Candidates are independent jobs — no gradients to synchronise, no shared state — so more Nanos is a work queue rather than a rewrite. **We had one Nano**, so every multi-node figure here and in the dashboard is labelled a projection. Published DGX Spark cluster work measures NCCL all-reduce at **~10.2 GB/s, roughly 40% of raw RDMA**, which matters enormously for distributed training and very little for a queue of independent jobs — but knowing which of those you are is what separates a defensible projection from a guess.
 
