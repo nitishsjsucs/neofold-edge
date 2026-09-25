@@ -601,6 +601,57 @@ Adding 429 residues of TCR did not degrade the pMHC core — the peptide is *mor
 
 ---
 
+## 6F. The next step: polyepitope construct assembly
+
+Selecting epitopes is not the end of the workflow. The next step in the real clinical pipeline is assembling them into a construct — what BioNTech's BNT122 and Moderna's mRNA-4157 actually do.
+
+**Architecture (BioNTech "pentatope", published in the BNT122 phase 1 Methods, *Nat Med* 2025):**
+
+```
+sec signal (26 aa)  →  N × 27-aa epitope stretches  →  MITD anchor (55 aa)
+```
+
+The sec and MITD sequences are published verbatim and cross-check exactly against independent patent base counts. Epitopes are **27-residue stretches with the mutation at position 14**, not minimal 9-mers — this lets the proteasome choose the register rather than committing to a predicted one.
+
+### The real engineering problem: junctional epitopes
+
+Joining two epitopes creates a new sequence across the seam, and that seam can encode an epitope nobody intended. This is demonstrated, not hypothetical:
+
+- **Livingston *et al.*, *J Immunol* 2002** — a complete causal loop. The arrangement created a high-affinity class II junction epitope; that epitope raised its own response; **all four intended responses were lost**; adding a spacer restored them.
+- **Cornet *et al.*, *Vaccine* 2006** — across **all six** orderings of three epitopes, **only one** produced the intended responses.
+
+**Measured on our own shortlist** (7 distinct stretches, HLA-C\*08:02):
+
+| Ordering | Junctional binders created |
+|---|---|
+| Naive — shortlist order | **6** |
+| Worst possible | 16 |
+| **Ours — exhaustive search** | **1** |
+
+**5,040 orderings evaluated in 3.2 s.** At this size the search is *exhaustive*, so the result is provably optimal; pvacvector must use simulated annealing because it targets larger sets. This is a genuine use of local compute with a checkable answer.
+
+### Linkers are not free, and are not our default
+
+**Do not reach for AAY.** No primary study establishes it — its citation chain runs through a review containing no AAY data, and Schubert & Kohlbacher (2016) scored it **below using no spacer at all**. Gurung *et al.* (2024) compared linker against no-linker with mass-spec readout across 47 antigens: **no-linker recovered more epitopes**, and glycine/serine linkers caused translation to collapse past roughly twenty antigens.
+
+So we join directly by default and insert a spacer only at a junction that no reordering can clean. On our shortlist, that was **zero junctions**.
+
+### ⚠️ What this must not claim
+
+**We emit amino acids only, never nucleotides** — a nucleotide sequence implies a manufacturing artefact and this is not one. A test asserts it.
+
+**The modality is not established, and the recent evidence has worsened:**
+
+- **August 2026: BioNTech terminated** the randomised Phase 2 of autogene cevumeran in resected ctDNA+ colorectal cancer. The futility boundary was crossed in October 2025, with a **numerical overall-survival imbalance between arms**.
+- **KEYNOTE-942** (mRNA-4157 + pembrolizumab) reported two-sided **p = 0.053**, CI 0.309–1.017 — **crossing 1.0**. It met only the trial's own one-sided α = 0.10.
+- **Rojas 2023** (pancreatic) is an **8-vs-8 responder split inside a single arm**.
+
+**And assembly cannot improve a shortlist — only avoid damaging it.** Per our own benchmarks, a 20-epitope construct should be expected to yield roughly **2–3 responding epitopes**. The value of this step is entirely in *not* creating junction artefacts.
+
+Between this output and a medicine sit GMP manufacture, release testing, toxicology, an IND and dose-finding.
+
+---
+
 ## 7. Recommended stack for the remaining build
 
 | Layer | Choice | Note |
