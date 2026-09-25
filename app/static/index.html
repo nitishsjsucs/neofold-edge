@@ -19,7 +19,8 @@
     --good:#0ca30c; --warn:#fab219; --bad:#d03b3b; --serious:#ec835a;
     --pep:#ffa657;
     /* AlphaFold's pLDDT bands. Same values molstar paints the cartoon with. */
-    --vhigh:#0053D6; --high:#65CBF3; --low:#FFDB13; --vlow:#FF7D45;
+    /* Dark-adapted; see PLDDT_BANDS in charts.js for the measured reason. */
+    --vhigh:#6E9BF2; --high:#7FD4F5; --low:#E5C33F; --vlow:#F2895A;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,monospace;
   }
   *{box-sizing:border-box}
@@ -394,10 +395,12 @@
                       margin:10px 0 0">
             <div id="plddtDist" style="flex:none"></div>
             <div class="prose" style="flex:1;min-width:200px;font-size:12px;color:var(--muted)">
-              How sure the model is about each residue's own position. The bands and their
-              colours are AlphaFold's, and the same values Mol* paints the cartoon above
-              with — so the plot and the picture mean the same thing. The peptide sits in
-              the orange band.
+              How sure the model is about each residue's own position. The bands and
+              thresholds are AlphaFold's. The hues are too, but lightened: AlphaFold's
+              exact values are calibrated for a white page, and on this dark one
+              <i>Very high</i> would measure 2.6:1 against <i>Low</i> at 12.6:1 — making
+              the band that means "trust this" the hardest to see. Same order, re-tuned.
+              The peptide sits in the orange band.
             </div>
           </div>
           <div class="subh" style="margin-top:18px">Predicted aligned error</div>
@@ -464,7 +467,7 @@
 import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces, drawPrecisionAtK,
          drawRoc, drawConfidenceVsError, drawPeptideTrack, drawIptmBand,
          drawPlddtDistribution, drawFunnel, drawEnrichment,
-         PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=13';
+         PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=15';
 
 const $ = s => document.querySelector(s);
 
@@ -482,7 +485,13 @@ function tip(ev, html){
 }
 let viewer = null, current = null;
 let allRows = [], sortKey = 'affinity_nm', sortDir = 1, lastConf = null;
-const redraws = [];                       // re-run on resize; charts are sized to px
+// Charts are sized in pixels, so they must be redrawn on resize and when a
+// hidden tab becomes visible. Keyed, because show() and run() can fire many
+// times in one session and an append-only list would re-draw the same chart
+// once per previous selection.
+const redraws = new Map();
+const onRedraw = (key, fn) => { redraws.set(key, fn); fn(); };
+const redrawAll = () => redraws.forEach(fn => { try{ fn(); }catch(e){} });
 
 async function jget(u, o){ const r = await fetch(u, o); if(!r.ok) throw new Error(await r.text()); return r.json(); }
 
@@ -673,8 +682,7 @@ function renderConf(s){
       </div>
     </div>`;
   if (s.iptm != null){
-    const draw = () => drawIptmBand($('#iptmBand'), +s.iptm);
-    draw(); redraws.push(draw);
+    onRedraw('iptm', () => drawIptmBand($('#iptmBand'), +s.iptm));
   }
 }
 
@@ -812,7 +820,7 @@ async function run(){
                tr.classList.add('sel'); tr.scrollIntoView({block:'center', behavior:'smooth'});
                selectCandidate(p); }
     });
-    drawLand(); redraws.push(drawLand);
+    onRedraw('landscape', drawLand);
     // Open on the top candidate: an empty detail panel next to a full table is
     // a dead end the reader has to discover the fix for.
     selectCandidate(sortRows(allRows)[0]);
@@ -846,7 +854,7 @@ async function run(){
   document.querySelectorAll('#evTabs button').forEach(b => b.onclick = () => {
     document.querySelectorAll('#evTabs button').forEach(x => x.classList.toggle('on', x === b));
     document.querySelectorAll('.tabpane').forEach(p => p.hidden = p.id !== b.dataset.pane);
-    redraws.forEach(fn => { try{ fn(); }catch(e){} });   // charts size to a visible box
+    redrawAll();                                   // charts size to a visible box
   });
 
   const ds = await jget('/api/datasets');
@@ -880,7 +888,7 @@ async function run(){
         drawPae($('#pae'), conf, tip);
         drawPlddtDistribution($('#plddtDist'), conf.plddt);
       };
-      draw(); redraws.push(draw);
+      onRedraw('confidence', draw);
     }catch(e){ lastConf = null; }
     $('#compare').style.display = id.startsWith('kras_g12d_9mer') ? '' : 'none';
   }
@@ -915,7 +923,7 @@ async function run(){
           if (v.roc.bjerregaard) drawRoc($('#rocBj'), v.roc.bjerregaard, tip);
           if (v.roc.tesla)       drawRoc($('#rocTe'), v.roc.tesla, tip);
         };
-        drawRocs(); redraws.push(drawRocs);
+        onRedraw('roc', drawRocs);
       }
 
       // Both benchmarks share a depth axis but have different base rates, so
@@ -928,12 +936,12 @@ async function run(){
         {label:'Bjerregaard 2017', colour:'#2a78d6', points:bj},
         {label:'TESLA 2020',       colour:'#1baf7a', points:te},
       ], v.tesla.base_rate, tip); };
-      drawPk(); redraws.push(drawPk);
+      onRedraw('precision', drawPk);
 
       if (v.rules){
         const drawEn = () => { if (!$('#pane-val').hidden)
           drawEnrichment($('#enrich'), v.rules, tip); };
-        drawEn(); redraws.push(drawEn);
+        onRedraw('enrichment', drawEn);
         const worst = v.rules.filter(r => r.enrichment < 1)
                              .sort((a,b) => a.enrichment - b.enrichment)[0];
         $('#enrichNote').innerHTML =
@@ -1002,7 +1010,7 @@ async function run(){
 
         const drawHo = () => { if (!$('#pane-holdout').hidden)
           drawConfidenceVsError($('#hoScatter'), v.structures, tip); };
-        drawHo(); redraws.push(drawHo);
+        onRedraw('holdout', drawHo);
 
         $('#hoNote').innerHTML =
           `Twelve peptide–HLA crystal structures, split on <b>Boltz-2's 2023-06-01 training
@@ -1041,7 +1049,7 @@ async function run(){
         ['OpenMM', 'CUDA on GB10'],
       ].map(([v,k]) => `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
       const drawMd = () => { if (!$('#pane-md').hidden) drawMdTraces($('#mdTrace'), md, tip, 'contacts'); };
-      drawMd(); redraws.push(drawMd);
+      onRedraw('md', drawMd);
       $('#mdTable').innerHTML = `<div class="cmp" style="margin:14px 0 0">
         <table><thead><tr><th>Metric</th><th>Tumour</th><th>Wild-type</th><th>Separates?</th></tr></thead><tbody>
         ${md.metrics.map(m => `<tr${m.separates?' class="key"':''}>
@@ -1074,7 +1082,7 @@ async function run(){
         [b.telemetry.power_peak_w+' W', 'peak power'],
       ].map(([v,k]) => `<div class="metric"><div class="v">${v}</div><div class="k">${k}</div></div>`).join('');
       const drawSc = () => { if (!$('#pane-bench').hidden) drawScaling($('#scaling'), b, tip); };
-      drawSc(); redraws.push(drawSc);
+      onRedraw('scaling', drawSc);
       $('#benchNote').innerHTML =
         `Single-node figures are <b>measured on this hardware</b> (${m.n_full_setting_runs} full-setting runs,
          383-residue complex, cached MSA). Multi-node figures are <b>projected</b> by multiplying
@@ -1089,7 +1097,7 @@ async function run(){
 
   let t = null;
   addEventListener('resize', () => { clearTimeout(t);
-    t = setTimeout(() => redraws.forEach(fn => { try{ fn(); }catch(e){} }), 150); });
+    t = setTimeout(redrawAll, 150); });
 
   refreshNet(); refreshGpu();
   setInterval(refreshGpu, 2000);

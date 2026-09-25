@@ -15,18 +15,32 @@ const STATUS = { good:'#0ca30c', warning:'#fab219', serious:'#ec835a',
                  critical:'#d03b3b', muted:'#8a8d8c' };
 const INK = { primary:'#f6f6f6', secondary:'#9aa0a6', grid:'#3a3b3d', surface:'#1b1b1b' };
 
-/* AlphaFold's pLDDT bands, sampled from the AlphaFold DB legend and confirmed
- * against molstar's own plddt.ts -- which is what our 3D viewer already paints
- * the cartoon with. Using anything else would make the chart and the structure
- * disagree about the same number.
+/* pLDDT bands. The THRESHOLDS and the hue order are AlphaFold's, sampled from
+ * the AlphaFold DB legend and confirmed against molstar's plddt.ts. The exact
+ * hexes are not, and the reason is measured rather than aesthetic.
+ *
+ * AlphaFold's palette is calibrated against a WHITE page. On our #1b1b1b card:
+ *
+ *   #0053D6  Very high (trust this)  ->   2.63:1   FAILS the 3:1 non-text floor
+ *   #65CBF3  High                    ->   9.34:1
+ *   #FFDB13  Low (do not trust)      ->  12.63:1   brightest thing on screen
+ *   #FF7D45  Very low                ->   6.78:1
+ *
+ * That is an INVERTED encoding: the band meaning "this is reliable" is the
+ * hardest to see, and the band meaning "this is not" dominates. Shipping the
+ * canonical hexes on a dark ground would be cargo-culting the reference.
+ *
+ * So: same thresholds, same hue order, re-tuned for our background. Every band
+ * now clears 6.2:1 and the spread is 1.7x rather than 4.8x. `afHex` keeps the
+ * canonical value, for anyone rendering this on white.
  *
  * NOT the ColabFold values (#0D57D3/#6ACBF1/#FED936/#FD7D4D); those are close
- * enough to look like a typo of these and are a different palette. */
+ * enough to look like a typo of the canonical ones and are a different palette. */
 export const PLDDT_BANDS = [
-  { min:90, max:100, hex:'#0053D6', label:'Very high', rule:'pLDDT > 90' },
-  { min:70, max:90,  hex:'#65CBF3', label:'High',      rule:'90 > pLDDT > 70' },
-  { min:50, max:70,  hex:'#FFDB13', label:'Low',       rule:'70 > pLDDT > 50' },
-  { min:0,  max:50,  hex:'#FF7D45', label:'Very low',  rule:'pLDDT < 50' },
+  { min:90, max:100, hex:'#6E9BF2', afHex:'#0053D6', label:'Very high', rule:'pLDDT > 90' },
+  { min:70, max:90,  hex:'#7FD4F5', afHex:'#65CBF3', label:'High',      rule:'90 > pLDDT > 70' },
+  { min:50, max:70,  hex:'#E5C33F', afHex:'#FFDB13', label:'Low',       rule:'70 > pLDDT > 50' },
+  { min:0,  max:50,  hex:'#F2895A', afHex:'#FF7D45', label:'Very low',  rule:'pLDDT < 50' },
 ];
 export function plddtBand(v){
   return PLDDT_BANDS.find(b => v >= b.min) || PLDDT_BANDS[PLDDT_BANDS.length - 1];
@@ -34,11 +48,19 @@ export function plddtBand(v){
 
 /* AlphaFold 3's own ipTM bands, verbatim from the AlphaFold Server FAQ. The
  * named GREY ZONE is the useful part: an officially sanctioned band that means
- * "we do not know", which is the honest reading of every ipTM we produce. */
+ * "we do not know", which is the honest reading of every ipTM we produce.
+ *
+ * Same dark-ground correction as above. The house diverging anchors
+ * (#B2182B / #A8A9AC / #2166AC) measure 2.51 / 7.33 / 2.92 on our surface --
+ * both DECIDED bands fail the floor while the UNDECIDED one is nearly 3x
+ * brighter than either. "We don't know" should not be the loudest thing in
+ * the component. Re-tuned to 5.5 / 5.1 / 6.3, a 1.2x spread. The grey zone
+ * stays genuinely neutral in hue: the field's convention is that a provisional
+ * state gets no semantic colour at all. */
 export const IPTM_BANDS = [
-  { lo:0,   hi:0.6, hex:'#B2182B', label:'likely failed' },
-  { lo:0.6, hi:0.8, hex:'#A8A9AC', label:'grey zone' },
-  { lo:0.8, hi:1.0, hex:'#2166AC', label:'confident' },
+  { lo:0,   hi:0.6, hex:'#D9737A', label:'likely failed' },
+  { lo:0.6, hi:0.8, hex:'#8A8D8C', label:'grey zone' },
+  { lo:0.8, hi:1.0, hex:'#6E9BF2', label:'confident' },
 ];
 
 function seqColor(t){                      // t in [0,1] -> sequential step
@@ -178,7 +200,7 @@ export function drawPlddt(container, data, tip){
   let d = `M ${x(0)} ${y(v[0])}`;
   for (let i = 1; i < n; i++) d += ` L ${x(i)} ${y(v[i])}`;
   svg.appendChild(el('path', {d:`${d} L ${x(n-1)} ${y(50)} L ${x(0)} ${y(50)} Z`,
-                              fill:'#0053D6', opacity:.10}));
+                              fill:PLDDT_BANDS[0].hex, opacity:.10}));
   // Segment the stroke by band, so the trace and the Mol* cartoon above it are
   // the same colours for the same reason.
   for (let i = 1; i < n; i++){

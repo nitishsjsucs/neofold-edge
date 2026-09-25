@@ -216,13 +216,26 @@ The interface is not styled to taste. Two research passes read the **live DOM** 
 
 | Decision | Source |
 |---|---|
-| **pLDDT bands `#0053D6` / `#65CBF3` / `#FFDB13` / `#FF7D45`** | Sampled from the AlphaFold DB legend and cross-checked against Mol\*'s `plddt.ts` — the same values our own 3D viewer paints the cartoon with, so the chart and the picture mean the same thing. *(Not the ColabFold values, which are close enough to look like a typo of these.)* |
+| **pLDDT thresholds and hue order** | Sampled from the AlphaFold DB legend and cross-checked against Mol\*'s `plddt.ts`. *(Not the ColabFold values, which are close enough to look like a typo of these.)* **The exact hexes are ours** — see below. |
 | **ipTM bands, including the named grey zone** | AlphaFold 3's own, verbatim from the AlphaFold Server FAQ: > 0.8 confident, 0.6–0.8 *"a grey zone where predictions could be correct or incorrect"*, < 0.6 likely failed |
 | **Neutral-grey surfaces, alpha-white hairlines, desaturated accent** | AlphaFold Server's measured tokens (`#131314` page, `rgba(255,255,255,.1)` borders, `#A8C7FA` accent) — it is DeepMind's own dark structural-biology product |
 | **Detail column gets two-thirds** | RCSB's `col-lg-4` / `col-lg-8` split |
 | **Value outside the bar, poles labelled** | The wwPDB validation slider, which turns a raw number into a position against a named reference population |
 | **`tabular-nums` everywhere numeric; identity column by ink strength, not weight; `12px 24px 12px 14px` cell padding** | Benchling's production CSS |
 | **Discrete bins, and value + uncertainty in one mark** | Correll *et al.*, CHI 2018 — superimposed beats juxtaposed (p = 0.02), discrete beats continuous (p < 0.01) |
+
+**Where we deliberately deviate, and why.** AlphaFold's palette is calibrated against a **white** page. Measured against our `#1b1b1b` card surface:
+
+| Band | Canonical | Contrast on our surface |
+|---|---|---|
+| Very high — *trust this* | `#0053D6` | **2.63 : 1** — fails the 3 : 1 non-text floor |
+| High | `#65CBF3` | 9.34 : 1 |
+| Low — *do not trust* | `#FFDB13` | **12.63 : 1** — the brightest thing on screen |
+| Very low | `#FF7D45` | 6.78 : 1 |
+
+That is an **inverted encoding**: the band meaning "this is reliable" is the hardest to see and the band meaning "this is not" dominates, with a 4.8× spread. The same is true of the ipTM track — the house diverging anchors put both *decided* bands below the floor (2.51 and 2.92) while the *undecided* grey zone sits at 7.33, nearly 3× brighter than either. "We don't know" should not be the loudest element in a confidence component.
+
+So we keep the thresholds, the hue order and the names, and re-tune the values for a dark ground: `#6E9BF2 / #7FD4F5 / #E5C33F / #F2895A`, every band ≥ 6.2 : 1 with the spread down to 1.7×. The canonical hex is retained as `afHex` in `PLDDT_BANDS` for anyone rendering on white, and the UI caption states the deviation and the reason. Copying a reference palette onto a background it was not measured for is cargo-culting, not fidelity.
 
 **A correctness bug this research found in our own CSS.** Seven rules applied `text-transform: uppercase`. Our HTML correctly authored `nM`, `ipTM`, `pLDDT`, `pTM`; the page rendered `NM`, `IPTM`, `PLDDT`, `PTM`. **`nM` is nanomolar. `NM` is not a unit.** The lower-case prefixes in pLDDT (*predicted*) and ipTM (*interface*) are the load-bearing part of the name. Exactly one class may now uppercase, and it may never touch a unit, a metric name, a peptide, a gene, an allele or an accession.
 
