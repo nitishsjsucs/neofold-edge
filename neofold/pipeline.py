@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from neofold.screen import (MIN_PRESENTATION, WEAK_BINDER_NM, PeptideScreen,
                             ScreenResult, rank_for_structure, triage)
+from neofold.expression import NormalExpression
 from neofold.selfsim import SelfProteome
 from neofold.variants import Candidate, Variant, build_candidates, read_fasta, variants_from_vcf
 
@@ -29,6 +30,7 @@ class TriageReport:
     results: list[ScreenResult]
     shortlist: list[ScreenResult]
     self_matches: dict = field(default_factory=dict)
+    expression_flags: dict = field(default_factory=dict)
     timings: dict[str, float] = field(default_factory=dict)
     skipped_variants: list[str] = field(default_factory=list)
 
@@ -53,6 +55,9 @@ class TriageReport:
             row = r.as_dict()
             row["tier"] = tier
             row["reason"] = reason
+            gene = r.candidate_id.split("-")[0]
+            if gene in self.expression_flags:
+                row["expression"] = self.expression_flags[gene].as_dict()
             if sm is not None:
                 row["self_verdict"] = sm.verdict
                 row["self_protein"] = sm.nearest_protein
@@ -77,6 +82,7 @@ def run_triage(
     top_n: int = 5,
     screen: PeptideScreen | None = None,
     proteome: SelfProteome | None = None,
+    expression: NormalExpression | None = None,
 ) -> TriageReport:
     timings: dict[str, float] = {}
 
@@ -135,9 +141,26 @@ def run_triage(
         timings["self_near"] = time.perf_counter() - t0
         timings["_n_presented"] = len(presented)
 
+    # Off-tumour safety annotation on the shortlist. A FLAG, never a gate:
+    # high normal-tissue expression warns, low expression never qualifies.
+    expression_flags: dict = {}
+    if expression is not None:
+        t0 = time.perf_counter()
+        for r in shortlist_candidates(results, top_n, self_matches):
+            gene = r.candidate_id.split("-")[0]
+            if gene not in expression_flags:
+                expression_flags[gene] = expression.check(gene)
+        timings["expression"] = time.perf_counter() - t0
+
     shortlist = rank_for_structure(results, top_n, self_matches)
     return TriageReport(
         allele=allele, variants=variants, candidates=candidates,
         results=results, shortlist=shortlist, timings=timings,
         skipped_variants=skipped, self_matches=self_matches,
+        expression_flags=expression_flags,
     )
+
+
+def shortlist_candidates(results, top_n, self_matches):
+    """The candidates that will be shortlisted, without re-ranking twice."""
+    return rank_for_structure(results, top_n, self_matches)

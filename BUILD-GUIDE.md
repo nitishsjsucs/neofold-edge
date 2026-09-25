@@ -601,6 +601,33 @@ Adding 429 residues of TCR did not degrade the pMHC core — the peptide is *mor
 
 ---
 
+## 6E-1. Expression: we built the INVERSE of the obvious filter
+
+The obvious move is to require the gene to be expressed — a GTEx `TPM ≥ 1` gate. **That is backwards and we did not build it.** Measured on the vendored atlas:
+
+| Gene | Peak normal TPM | What a `TPM ≥ 1` gate would do |
+|---|---|---|
+| **CTAG1B (NY-ESO-1)** | **0.06** | **delete it** |
+| MAGEA3 | 13.2 (testis only) | barely survive |
+
+NY-ESO-1 is one of the best-studied cancer-testis antigens. **Silence in normal tissue is the defining property of that antigen class, not a defect.** And GTEx is a *normal-tissue* atlas — it cannot tell you what the tumour expresses, which is what such a gate is really reaching for.
+
+**The defensible direction is the other one.** If the source gene is highly expressed in healthy tissue, a T-cell raised against that peptide has somewhere to do damage:
+
+| Gene | Critical-tissue TPM | Flag |
+|---|---|---|
+| **TTN (titin)** | **64 TPM, heart left ventricle** | **elevated** |
+| ACTB | 3,225 TPM, lung | elevated |
+| KRAS / PIK3CA / EGFR | 20–44 TPM | moderate |
+
+TTN is not a hypothetical. In the MAGE-A3 TCR trials an engineered receptor cross-reacted with a titin peptide and **patients died of cardiac toxicity**.
+
+**So: high normal expression warns; low normal expression never qualifies.** The flag annotates and never gates — a test asserts `is_gate is False`, and the low-risk wording says explicitly that it "is NOT evidence the candidate is good".
+
+**What it cannot establish:** GTEx medians are a population average, not this patient; bulk tissue dilutes rare cell types; and expression of a gene is not presentation of a peptide.
+
+---
+
 ## 6E-2. The local LLM summary — and why it needs two guardrails
 
 A language model is used for exactly one thing: turning a row of numbers into a paragraph. It computes nothing and decides nothing. It runs on the Nano via Ollama (qwen3:8b, 100% GPU), in about **5–8 seconds** per candidate.
