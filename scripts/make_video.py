@@ -95,7 +95,8 @@ def concat_audio(scenes: list[dict]) -> pathlib.Path:
                    check=True, capture_output=True)
     parts = []
     for s in scenes:
-        parts += [f"file '{OUT / f'vo-{s['id']}.wav'}'", f"file '{gap}'"]
+        clip = OUT / ("vo-" + s["id"] + ".wav")
+        parts += [f"file '{clip}'", f"file '{gap}'"]
     lst.write_text("\n".join(parts) + "\n")
     track = OUT / "narration.wav"
     subprocess.run([ffmpeg(), "-y", "-f", "concat", "-safe", "0", "-i", str(lst),
