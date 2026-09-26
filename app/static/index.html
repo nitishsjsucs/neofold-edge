@@ -1234,6 +1234,10 @@ const PARAMS = new URLSearchParams(location.search);
   if (PARAMS.has('allele')) $('#al').value = PARAMS.get('allele');
   if (PARAMS.has('structure')) await show(PARAMS.get('structure'));
   if (PARAMS.get('run') === '1') await run();
+  if (PARAMS.get('summary') === '1'){
+    // Lets the figure capture reach a state that otherwise needs a click.
+    await generateSummary();
+  }
   if (PARAMS.has('tab')){
     const b = document.querySelector(`#evTabs button[data-pane="${PARAMS.get('tab')}"]`);
     if (b) b.click();
