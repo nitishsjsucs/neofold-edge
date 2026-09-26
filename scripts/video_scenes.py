@@ -135,15 +135,14 @@ def a4_ladder(d, title_l, title_r, rows_l, rows_r, verdict_l, verdict_r, t,
             A.role(d, (x, 964), verdict, "verdict", colour=col, alpha=A.out_cubic(q))
 
 
-def a5_sequence(d, rows, t, delay=0.0, accent=AC):
+def a5_sequence(d, rows, t, delay=0.0, accent=AC, top0=340, pitch=140):
     """Numbered rows with a value and a bar. One accent, not four."""
-    top0 = 340
     for i, (title, note, value, frac) in enumerate(rows):
         p = A.stagger(i, t, each=0.5, gap=0.24, delay=delay)
         if p <= 0:
             continue
         a = A.out_cubic(p)
-        top = top0 + 152 * i
+        top = top0 + pitch * i
         A.role(d, (COL(0), top + 46), f"{i+1:02d}", "mono_data", colour=TX_4, alpha=a)
         A.role(d, (COL(2), top + 46), title, "lead", colour=TX_1, alpha=a)
         if note:
@@ -154,7 +153,7 @@ def a5_sequence(d, rows, t, delay=0.0, accent=AC):
             A.bar(d, COL(8), top + 44, COL(16) - COL(8), 20,
                   frac * a, A.over(accent, a), track=A.over(RAISED, a))
         if i < len(rows) - 1:
-            d.rectangle([COL(0), top + 140, COL(16), top + 140 + HAIRLINE],
+            d.rectangle([COL(0), top + pitch - 12, COL(16), top + pitch - 12 + HAIRLINE],
                         fill=A.over(LINE_PAGE, a))
 
 
@@ -242,9 +241,9 @@ def hook(t, dur, text=""):
     p = A.window(t, 4.0, 1.4)
     if p > 0:
         s = A.counter(75, p, comma=False)
-        w = A.role(d, (COL(0), 800), s, "stat", colour=SUCCESS, alpha=min(1, p * 4))
-        A.role(d, (COL(0) + w + 18, 800), "%", "stat_unit", alpha=min(1, p * 4))
-        A.role(d, (COL(0) + w + 120, 800), "her largest tumour shrank", "lead",
+        w = A.role(d, (COL(0), 852), s, "stat", colour=SUCCESS, alpha=min(1, p * 4))
+        A.role(d, (COL(0) + w + 18, 852), "%", "stat_unit", alpha=min(1, p * 4))
+        A.role(d, (COL(0) + w + 130, 852), "her largest tumour shrank", "lead",
                alpha=A.window(t, 4.6, 0.5))
     A.role(d, (COL(0), 968),
            "one dog · not a controlled study · given with a checkpoint inhibitor",
@@ -274,16 +273,19 @@ def problem(t, dur, text=""):
     real = set(rng.choice(N, 51, replace=False).tolist())
     appear = A.out_cubic(A.window(t, 0.2, 1.2))
     dim = A.out_cubic(A.window(t, 2.4, 2.0))
+    # The grid has made its point by the time the 6% lands; recede it rather
+    # than letting the stat sit on top of it.
+    recede = A.out_cubic(A.window(t, 4.3, 0.7)) * 0.82
     base_c, off_c = TX_3, A.mix(TX_4, PAGE, 0.55)
     cols = np.zeros((N, 3), np.uint8)
     for i in range(N):
         if i / N > appear:
             cols[i] = PAGE
         elif i in real:
-            cols[i] = A.mix(base_c, SUCCESS, dim)
+            cols[i] = A.mix(A.mix(base_c, SUCCESS, dim), PAGE, recede)
         else:
-            cols[i] = A.mix(base_c, off_c, dim)
-    im = A.dot_grid(N, COLS, CELL, RAD, cols, ((W - COLS * CELL) / 2, 300))
+            cols[i] = A.mix(A.mix(base_c, off_c, dim), PAGE, recede)
+    im = A.dot_grid(N, COLS, CELL, RAD, cols, ((W - COLS * CELL) / 2, 296))
     d = ImageDraw.Draw(im)
     A.role(d, (COL(0), Y_EYEBROW), "one tumour", "eyebrow", alpha=A.window(t, 0, 0.4))
     A.kicker(d, alpha=A.window(t, 0.12, 0.4))
@@ -304,13 +306,13 @@ def problem(t, dur, text=""):
 
 def nano(t, dur, text=""):
     im = A.canvas(); d = ImageDraw.Draw(im)
-    a2_head(d, "one device", "Four models resident at the same time.", t)
+    last = a2_head(d, "one device", "All four models stay resident.", t)
     a5_sequence(d, [
         ("MHCflurry", "binding screen · CPU", "1,890", 1.0),
         ("Boltz-2", "structure prediction · GPU", "64 s", 0.62),
         ("OpenMM", "molecular dynamics · GPU", "4 fs", 0.42),
         ("qwen3:8b", "plain-English summary · GPU", "100%", 0.78),
-    ], t, delay=0.8)
+    ], t, delay=0.8, top0=last + 92, pitch=140)
     A.role(d, (COL(0), 968),
            "128 GB unified memory · 38 W peak, measured · about what a laptop pulls",
            "caption", alpha=A.window(t, 3.6, 0.6))

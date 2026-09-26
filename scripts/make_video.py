@@ -37,6 +37,8 @@ VOICES = pathlib.Path.home() / "voices"
 
 from video_theme import FPS, H, SCENE_XFADE, W          # noqa: E402
 
+SCENE_GAP = 0.35                   # must equal the silence concat_audio inserts
+
 # Kokoro (82M, StyleTTS2 + ISTFTNet). Better prosody than Piper: it stresses
 # the operative word and reads punctuation as phrasing.
 VOICE = "af_heart"
@@ -77,6 +79,10 @@ def render_audio(scenes: list[dict]) -> None:
     import soundfile as sf
 
     OUT.mkdir(parents=True, exist_ok=True)
+    live = {f"vo-{s['id']}.wav" for s in scenes} | {f"raw-{s['id']}.wav" for s in scenes}
+    for stale in list(OUT.glob("vo-*.wav")) + list(OUT.glob("raw-*.wav")):
+        if stale.name not in live:          # left over from an earlier scene list
+            stale.unlink()
     k = kokoro()
     for s in scenes:
         wav = OUT / f"vo-{s['id']}.wav"
@@ -113,7 +119,7 @@ def concat_audio(scenes: list[dict]) -> pathlib.Path:
     lst = OUT / "audio.txt"
     gap = OUT / "gap.wav"
     subprocess.run([ffmpeg(), "-y", "-f", "lavfi", "-i",
-                    "anullsrc=r=24000:cl=mono", "-t", "0.35", str(gap)],
+                    "anullsrc=r=24000:cl=mono", "-t", str(SCENE_GAP), str(gap)],
                    check=True, capture_output=True)
     parts = []
     for s in scenes:
@@ -151,7 +157,8 @@ def render_video(scenes: list[dict], dest: pathlib.Path) -> None:
 
     prev, written = None, 0
     xf = int(SCENE_XFADE * FPS)
-    for s in scenes:
+    gap_frames = int(round(SCENE_GAP * FPS))
+    for si, s in enumerate(scenes):
         n = max(1, int(round(s["dur"] * FPS)))
         for i in range(n):
             f = scene_frame(s["id"], i / FPS, s["dur"], s["text"])
@@ -160,6 +167,13 @@ def render_video(scenes: list[dict], dest: pathlib.Path) -> None:
             proc.stdin.write(f.tobytes())
             written += 1
         prev = f
+        # Hold the last frame through the silence the audio track has here.
+        # Without this the picture finishes early and -shortest eats the tail
+        # of the narration.
+        if si < len(scenes) - 1:
+            for _ in range(gap_frames):
+                proc.stdin.write(f.tobytes())
+                written += 1
         print(f"  {s['id']:10} {n:5d} frames  ({s['dur']:.1f}s)")
 
     for i in range(FPS):
@@ -167,6 +181,19 @@ def render_video(scenes: list[dict], dest: pathlib.Path) -> None:
         written += 1
     proc.stdin.close(); proc.wait()
     print(f"  {'video':10} {written:5d} frames  ({written / FPS:.1f}s)")
+
+
+def assert_durations(scenes, video_path):
+    """The picture must be at least as long as the voice, or -shortest silently
+    truncates the narration -- which is exactly how the ending got cut."""
+    import wave
+    with wave.open(str(OUT / "narration.wav")) as w:
+        voice = w.getnframes() / w.getframerate()
+    picture = sum(s["dur"] for s in scenes) + SCENE_GAP * (len(scenes) - 1) + 1.0
+    print(f"  voice {voice:.2f}s · picture {picture:.2f}s · headroom {picture - voice:+.2f}s")
+    assert picture >= voice - 0.05, (
+        f"picture ({picture:.2f}s) is shorter than the voice ({voice:.2f}s); "
+        "the ending would be cut")
 
 
 def mux(video: pathlib.Path, vo: pathlib.Path, music: pathlib.Path | None,
@@ -219,7 +246,7 @@ def main() -> None:
     track = concat_audio(scenes)
     print(f"  {track.name}")
     print("score:")
-    cues = write_cues(scenes, gap=0.35)
+    cues = write_cues(scenes, gap=SCENE_GAP)
     music = make_music(cues)
 
     print("cues:")
@@ -232,6 +259,8 @@ def main() -> None:
         resolved = vp.plan([dict(c, scale=vp.pick_scale(capture, c["region"]))
                             for c in cues], s["text"], s["dur"])
         print(vp.describe(s["id"], resolved, s["dur"]))
+
+    assert_durations(scenes, None)
 
     silent = OUT / "silent.mp4"
     if a.remux:
