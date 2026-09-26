@@ -474,7 +474,8 @@ def mux(video: pathlib.Path, vo: pathlib.Path, music: pathlib.Path | None,
     """Narration on top, score underneath and sidechain-ducked by it, so the
     music opens up between sentences instead of fighting them."""
     if music is None:
-        fc = "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[a]"
+        fc = ("[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,aresample=48000,"
+              "pan=stereo|c0=c0|c1=c0[a]")
         ins = [ffmpeg(), "-y", "-i", str(video), "-i", str(vo)]
     else:
         fc = ("[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,asplit=2[vo][key];"
@@ -482,11 +483,13 @@ def mux(video: pathlib.Path, vo: pathlib.Path, music: pathlib.Path | None,
               "[mu][key]sidechaincompress=threshold=0.03:ratio=9:"
               "attack=8:release=420:makeup=1[duck];"
               "[vo][duck]amix=inputs=2:duration=longest:normalize=0,"
-              "alimiter=limit=0.95[a]")
+              "alimiter=limit=0.95,aresample=48000,"
+              "pan=stereo|c0=c0|c1=c0[a]")
         ins = [ffmpeg(), "-y", "-i", str(video), "-i", str(vo), "-i", str(music)]
     subprocess.run(
         ins + ["-filter_complex", fc, "-map", "0:v", "-map", "[a]",
                "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+               "-ar", "48000", "-ac", "2",
                "-shortest", "-movflags", "+faststart", str(dest)],
         check=True, capture_output=True)
 
@@ -495,6 +498,8 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--scene", help="re-render one scene's audio only")
     ap.add_argument("--audio-only", action="store_true")
+    ap.add_argument("--remux", action="store_true",
+                    help="rebuild audio and re-mux onto the existing frames")
     a = ap.parse_args()
 
     if not shutil.which("piper"):
@@ -517,10 +522,14 @@ def main() -> None:
     cues = write_cues(scenes, gap=0.35)
     music = make_music(cues)
 
-    print("frames:")
-    shots = build_shots(scenes)
     silent = OUT / "silent.mp4"
-    render_video(scenes, shots, silent)
+    if a.remux:
+        if not silent.exists():
+            sys.exit("no rendered frames yet -- run a full build first")
+        print("frames:\n  reusing silent.mp4")
+    else:
+        print("frames:")
+        render_video(scenes, build_shots(scenes), silent)
 
     dest = ROOT / "video" / "neofold-edge-demo.mp4"
     mux(silent, track, music, dest)
