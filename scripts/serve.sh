@@ -66,9 +66,13 @@ tmux new-session -d -s "$SESSION" \
 printf 'starting on %s:%s ' "$BIND" "$PORT"
 for _ in $(seq 1 60); do
   if curl -sS -o /dev/null --max-time 2 "http://$BIND:$PORT/api/health" 2>/dev/null; then
-    echo; echo "ready:  http://$BIND:$PORT"
-    command -v hostname >/dev/null && \
-      echo "        http://$(hostname):$PORT   (tailnet MagicDNS name)"
+    echo; echo "ready:  http://$BIND:$PORT   (on this machine)"
+    if [ "$BIND" = "127.0.0.1" ]; then
+      echo
+      echo "to reach it from your laptop, tunnel over the SSH access you have:"
+      echo "  ssh -N -L $PORT:127.0.0.1:$PORT $(whoami)@$(hostname)"
+      echo "then open  http://127.0.0.1:$PORT"
+    fi
     echo
     echo "tmux attach -t $SESSION    # watch it"
     echo "$0 stop                    # stop it"
