@@ -155,10 +155,15 @@ def draw_plate(capture: str, cues, t: float, dur: float, eyebrow: str,
 
         ca = A.window(since, 0.10, CAPTION_IN)
         if ca > 0 and cue.get("caption"):
-            cy = rb[3] + 22 if rb[3] < IMAGE_BOX[1] + WINDOW_H * 0.6 else rb[1] - 92
-            cx = min(rb[0], IMAGE_BOX[2] - 560)
+            # Put the chip in whichever half of the plate the ring is NOT in,
+            # then clamp hard: a caption that escapes the plate reads as a bug.
+            CH = 86
+            mid = IMAGE_BOX[1] + WINDOW_H / 2
+            cy = rb[3] + 20 if (rb[1] + rb[3]) / 2 < mid else rb[1] - CH - 20
+            cy = max(IMAGE_BOX[1] + 14, min(IMAGE_BOX[3] - CH - 14, cy))
+            cx = max(IMAGE_BOX[0] + 14, min(rb[0], IMAGE_BOX[2] - 540))
             im, _ = A.chip(im, (cx, cy + (1 - A.out_cubic(ca)) * 8),
-                           [cue["caption"]], max_w=500)
+                           [cue["caption"]], max_w=480)
             d = ImageDraw.Draw(im)
 
     if footer:

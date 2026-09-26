@@ -31,11 +31,14 @@ def a1_title(lines, eyebrow=None, meta=None, t=0.0, accent_idx=None):
     """Bottom-left anchored. The top 60% stays empty -- that emptiness is the
     composition, and it is what most changes how a title card reads."""
     im = A.canvas(); d = ImageDraw.Draw(im)
-    if eyebrow:
-        a, _ = A.out_cubic(A.window(t, 0.0, 0.5)), None
-        A.role(d, (COL(0), 672), eyebrow, "eyebrow", alpha=a)
-        A.kicker(d, y=704, alpha=A.window(t, 0.15, 0.4))
+    # The archetype is specced for two display lines; a third pushes the block
+    # up into the eyebrow, so the eyebrow follows the block rather than sitting
+    # at a fixed y and colliding.
     base = 892 - (len(lines) - 1) * 126
+    if eyebrow:
+        a = A.out_cubic(A.window(t, 0.0, 0.5))
+        A.role(d, (COL(0), base - 94), eyebrow, "eyebrow", alpha=a)
+        A.kicker(d, y=base - 62, alpha=A.window(t, 0.15, 0.4))
     for i, ln in enumerate(lines):
         p = A.stagger(i, t, each=0.55, gap=0.14, delay=0.25)
         if p <= 0:
@@ -119,13 +122,13 @@ def a4_ladder(d, title_l, title_r, rows_l, rows_r, verdict_l, verdict_r, t,
             if p <= 0:
                 continue
             a = A.out_cubic(p)
-            top = 416 + 68 * i
+            top = 404 + 62 * i
             is_hot = i in hot
-            A.rrect(d, [x, top + (1 - a) * 10, x + 672, top + 58 + (1 - a) * 10],
+            A.rrect(d, [x, top + (1 - a) * 10, x + 672, top + 52 + (1 - a) * 10],
                     R_CTRL, fill=A.over((40, 20, 22) if is_hot else CARD, a),
                     outline=A.over(col if is_hot else LINE_CARD, a),
                     width=HAIRLINE)
-            A.role(d, (x + 28, top + 38 + (1 - a) * 10), s, "body",
+            A.role(d, (x + 28, top + 35 + (1 - a) * 10), s, "body",
                    colour=TX_1 if is_hot else TX_2, alpha=a)
         q = A.window(t, delay + (5.0 if col is DANGER else 5.2), 0.5)
         if q > 0:
@@ -226,7 +229,7 @@ def meta(t, dur, text=""):
 
 
 def what(t, dur, text=""):
-    return a1_title(["Picks the targets", "a cancer vaccine", "should aim at."],
+    return a1_title(["Picks the targets a", "cancer vaccine aims at."],
                     eyebrow="NeoFold Edge",
                     meta=["one small computer", "completely offline"], t=t)
 
