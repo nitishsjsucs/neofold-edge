@@ -1,0 +1,51 @@
+# Narration for the 2-minute demo video.
+#
+# Lines starting with '#' are comments. Each scene is "@ id | shot note" followed
+# by its spoken text. scripts/make_video.py renders one audio clip per scene and
+# times the visuals to the measured clip length, so scenes can be re-recorded
+# individually without rebuilding the whole film.
+#
+# Written for Piper, so numbers and units are spelled the way they should be
+# SPOKEN, not the way they are written in the docs: "two and a half angstroms",
+# not "2.5 Å".
+
+@ hook | title card, then the Rosie facts as type
+In twenty twenty-four, a dog named Rosie was dying of cancer. Her owner is a
+machine learning engineer, not a biologist. He had her tumour sequenced, used
+A.I. to find the mutations that mattered, and designed her a vaccine. Her
+largest tumour shrank by three quarters.
+
+@ question | governance diagram: cloud path versus edge path
+So why can't every hospital do this? Because the input is a human genome. It
+identifies the patient, and it partly identifies their family. In most places,
+it cannot legally leave the building.
+
+@ problem | five gates diagram, then the base-rate card
+And the hard part was never making the vaccine. It is choosing what goes in it.
+One tumour throws up about nineteen hundred candidate fragments. Only a handful
+are real. In the largest trial ever run, six percent worked.
+
+@ build | pipeline diagram, then the live dashboard
+NeoFold Edge does that choosing, entirely offline, on one HP ZGX Nano. It
+screens all nineteen hundred in nine seconds. Cuts anything matching a healthy
+human protein. Folds the survivors in three dimensions. Stress-tests them with
+physics. Then explains each one in plain English.
+
+@ wow | SLOW ZOOM onto the flagged row in the candidate table
+This is why that second step matters. This candidate comes from KIT, a real
+cancer driver. By every conventional measure, it ranked first. It is also an
+exact match to a healthy human protein. A treatment aimed at it would attack
+the patient. Our filter caught it.
+
+@ nano | hardware diagram
+Three neural networks and a physics engine, all resident at once. That needs a
+hundred and twenty-eight gigabytes of unified memory, and it draws thirty-eight
+watts. No rack. No cloud. Nothing leaves the room.
+
+@ proof | structure panel with the contact readout, then the run timeline
+Is it right? We predict one key atomic contact at two and a half angstroms. The
+crystal structure measures two point seven. One tumour takes about thirteen
+minutes.
+
+@ close | closing card: tagline and repo
+A cancer research lab that fits on a desk, and never phones home.
