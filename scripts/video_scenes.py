@@ -150,8 +150,11 @@ def dashboard(t, dur):
 # --------------------------------------------------------------- structure
 def structure(t, dur):
     p = t / max(0.5, dur)
-    return screen("vid-structure", p,
-                  (0.00, 0.24, 1.00, 0.86), (0.02, 0.30, 0.98, 0.74),
+    # The headless captures leave the WebGL viewport black; this earlier grab
+    # has the cartoon rendered, so the push travels from the molecule down to
+    # the number that makes it checkable.
+    return screen("structure", p,
+                  (0.02, 0.20, 0.98, 0.50), (0.02, 0.52, 0.98, 0.76),
                   label="predicted peptide–HLA complex",
                   caption="2.5 Å predicted · 2.7 Å in the crystal",
                   sub="the contact was chosen before the prediction was run")
