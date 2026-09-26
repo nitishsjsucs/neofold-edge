@@ -107,8 +107,8 @@ def screen(name, t_, a, b, caption=None, sub=None, ease=out_cubic,
           box[2] * src.width, box[3] * src.height)
     crop = src.crop(tuple(int(v) for v in px))
 
-    top = 118 if caption else 40          # headroom for the caption
-    bw, bh = W - 120, H - top - 70
+    top = 158 if caption else 56          # headroom so the caption never overlaps
+    bw, bh = W - 140, H - top - 84
     sc = min(bw / crop.width, bh / crop.height)
     crop = crop.resize((max(1, int(crop.width * sc)), max(1, int(crop.height * sc))),
                        Image.LANCZOS)
@@ -120,10 +120,10 @@ def screen(name, t_, a, b, caption=None, sub=None, ease=out_cubic,
           outline=(44, 52, 62), width=2)
 
     if label:
-        text(d, (W / 2, 48), label.upper(), "b", 22, FAINT, "ma", clamp(t_ * 4))
+        text(d, (W / 2, 46), label.upper(), "b", 22, FAINT, "ma", clamp(t_ * 4))
     if caption:
         ca = clamp(t_ * 3)
-        text(d, (W / 2, 84), caption, "b", 40, INK, "ma", ca)
+        text(d, (W / 2, 96), caption, "b", 42, INK, "ma", ca)
     if sub:
         text(d, (W / 2, H - 40), sub, "r", 28, MUTED, "ma", window(t_, 0.35, 0.25))
     if hl:
@@ -141,7 +141,7 @@ def dashboard(t, dur):
     presentation, and judging guidance is explicit that presentations lose."""
     p = t / max(0.5, dur)
     return screen("vid-dashboard", p,
-                  (0.00, 0.00, 1.00, 1.00), (0.01, 0.30, 0.56, 0.98),
+                  (0.00, 0.00, 1.00, 0.62), (0.01, 0.40, 0.56, 0.90),
                   label="running on the Nano",
                   caption="the actual interface",
                   sub="every row scored, ranked, and explained · no mock-ups")
@@ -151,7 +151,7 @@ def dashboard(t, dur):
 def structure(t, dur):
     p = t / max(0.5, dur)
     return screen("vid-structure", p,
-                  (0.00, 0.30, 1.00, 1.00), (0.02, 0.62, 0.98, 1.00),
+                  (0.00, 0.24, 1.00, 0.86), (0.02, 0.30, 0.98, 0.74),
                   label="predicted peptide–HLA complex",
                   caption="2.5 Å predicted · 2.7 Å in the crystal",
                   sub="the contact was chosen before the prediction was run")
