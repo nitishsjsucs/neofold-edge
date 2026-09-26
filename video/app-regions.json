@@ -1,0 +1,28 @@
+{
+  "_comment": [
+    "Element positions inside docs/img/app-full.png (3000x6738), as fractions.",
+    "Measured from the live DOM with getBoundingClientRect at the same viewport",
+    "the capture was taken at (1500x3369 CSS px, 2x device scale), NOT eyeballed.",
+    "Re-measure with scripts/measure_regions.md if the layout changes."
+  ],
+  "source": "docs/img/app-full.png",
+  "size": [3000, 6738],
+  "regions": {
+    "offline_badge":   [0.0922, 0.0041, 0.1881, 0.0123],
+    "funnel":          [0.0207, 0.0610, 0.3868, 0.1419],
+    "landscape":       [0.0207, 0.1780, 0.3868, 0.2492],
+    "table":           [0.0100, 0.2972, 0.4028, 0.4400],
+    "table_top8":      [0.0100, 0.3020, 0.4028, 0.3890],
+    "flagged_row":     [0.0100, 0.4131, 0.4028, 0.4227],
+    "detail_card":     [0.4075, 0.0209, 0.9907, 0.1116],
+    "viewer":          [0.4081, 0.1431, 0.9900, 0.2737],
+    "confidence":      [0.4081, 0.2912, 0.9900, 0.3276],
+    "contact":         [0.4188, 0.3276, 0.9793, 0.3751],
+    "auc_stats":       [0.4188, 0.4998, 0.9793, 0.5220],
+    "roc_bj":          [0.4188, 0.5368, 0.6937, 0.6544],
+    "roc_te":          [0.7044, 0.5368, 0.9793, 0.6544],
+    "precision_k":     [0.4188, 0.6678, 0.9793, 0.7272],
+    "enrichment":      [0.4188, 0.8027, 0.9793, 0.8864],
+    "evidence_card":   [0.4075, 0.4676, 0.9907, 0.9958]
+  }
+}
