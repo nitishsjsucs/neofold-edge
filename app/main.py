@@ -133,6 +133,65 @@ def triage_endpoint(payload: dict) -> JSONResponse:
     return JSONResponse(out)
 
 
+@app.post("/api/report")
+def report_endpoint(payload: dict) -> JSONResponse:
+    """Plain-language restatement of one candidate's evidence, generated locally.
+
+    ON DEMAND, NOT ON SELECTION. This is the only stage that costs GPU seconds
+    per click (~8 s on GB10), so firing it as the user walks down the candidate
+    list would make the table feel broken.
+
+    The model is handed structured facts and asked to restate them. It computes
+    nothing and decides nothing, and two guardrails check that it did only what
+    it was asked: every numeric token in the output must appear in the facts,
+    and a phrase list rejects interpretive claims the evidence does not license.
+    A REJECTED SUMMARY IS RETURNED AS A REJECTION rather than swallowed --
+    showing the guardrail firing is more informative than hiding it.
+    """
+    from neofold.report import DISCLAIMER, EvidenceCard, fallback_summary, generate
+
+    def num(key, default=None):
+        v = payload.get(key, default)
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+
+    peptide = (payload.get("peptide") or "").strip().upper()
+    if not peptide or not peptide.isalpha():
+        raise HTTPException(status_code=400, detail="peptide required")
+
+    card = EvidenceCard(
+        candidate_id=payload.get("candidate_id") or peptide,
+        peptide=peptide,
+        wt_peptide=(payload.get("wt_peptide") or "").strip().upper(),
+        allele=payload.get("allele") or "",
+        affinity_nm=num("affinity_nm", 0.0),
+        wt_affinity_nm=num("wt_affinity_nm", 0.0),
+        affinity_percentile=num("affinity_percentile"),
+        binder_class=payload.get("binder_class") or "",
+        wt_binder_class=payload.get("wt_binder_class") or "",
+        dai=num("dai", 0.0),
+        mutation_site=payload.get("mutation_site") or "",
+        self_verdict=payload.get("self_verdict"),
+        self_protein=payload.get("self_protein"),
+        structure=payload.get("structure"),
+        contact=payload.get("contact"),
+        md=payload.get("md"),
+    )
+
+    rep = generate(card)
+    out = rep.as_dict()
+    # A template when no local model is up, and honest about being one -- the
+    # demo must not depend on Ollama being awake.
+    if not rep.verified and rep.rejected_reason and "unavailable" in rep.rejected_reason:
+        out["fallback"] = fallback_summary(card)
+        out["fallback_note"] = ("No local model is running, so this is a "
+                                "deterministic template, not generated text.")
+    out["disclaimer"] = DISCLAIMER
+    return JSONResponse(out)
+
+
 def _find_cif(name: str) -> Path | None:
     """Structures live either in results/ or results/shortlist/."""
     for base in (RESULTS, RESULTS / "shortlist"):

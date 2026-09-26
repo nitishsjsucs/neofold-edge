@@ -127,6 +127,29 @@
   /* ---- selected-candidate detail: where the prose moved to. */
   .detail .track{padding:2px 0 10px}
   .detail .prose{font-size:12.5px;color:var(--muted);line-height:1.6}
+  /* Local LLM summary. The facts go on screen beside the prose, because the
+     claim is that the model only restated them -- which is checkable only if
+     you can see both. */
+  .sumhead{display:flex;align-items:center;gap:10px;margin:16px 0 8px}
+  .sumhead .subh{margin:0}
+  .sumbtn{font-size:12px;padding:5px 11px;border-radius:7px;cursor:pointer;
+          background:var(--raised);border:1px solid var(--line);color:var(--text)}
+  .sumbtn:hover:not(:disabled){border-color:var(--accent)}
+  .sumwrap{border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .sumbody{padding:11px 13px;font-size:12.5px;line-height:1.65;color:var(--text)}
+  .sumbody.bad{color:var(--bad)}
+  .sumfacts{border-top:1px solid var(--line);background:var(--sunken);
+            padding:10px 13px}
+  .sumfacts li{font-family:var(--mono);font-size:11px;color:var(--muted);
+               line-height:1.7;list-style:none;margin:0}
+  .sumfacts ul{margin:0;padding:0}
+  .summeta{display:flex;gap:10px;flex-wrap:wrap;align-items:center;
+           border-top:1px solid var(--line);padding:8px 13px;font-size:11px;
+           color:var(--faint)}
+  .summeta .ok{color:#6fd66f;font-weight:600}
+  .summeta .no{color:var(--bad);font-weight:600}
+  .sumdisc{border-top:1px solid var(--line);padding:9px 13px;font-size:11.5px;
+           color:var(--warn);line-height:1.55;background:rgba(250,178,25,.05)}
   .flagrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
   .flag{font-size:11.5px;padding:4px 9px;border-radius:6px;border:1px solid var(--line);
         background:var(--raised);color:var(--muted)}
@@ -323,6 +346,13 @@
         <div class="track" id="detailTrack"></div>
         <div class="prose" id="detailProse"></div>
         <div class="flagrow" id="detailFlags"></div>
+
+        <div class="sumhead">
+          <span class="subh">Evidence summary</span>
+          <span class="eyebrow">generated on-device</span>
+          <button class="sumbtn" id="sumBtn" style="margin-left:auto">Generate</button>
+        </div>
+        <div id="summary"></div>
       </div>
     </div>
 
@@ -475,7 +505,7 @@
 import { drawPae, drawPlddt, drawLandscape, drawScaling, drawMdTraces, drawPrecisionAtK,
          drawRoc, drawConfidenceVsError, drawPeptideTrack, drawIptmBand,
          drawPlddtDistribution, drawFunnel, drawEnrichment,
-         PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=15';
+         PLDDT_BANDS, IPTM_BANDS } from '/static/charts.js?v=16';
 
 const $ = s => document.querySelector(s);
 
@@ -493,6 +523,7 @@ function tip(ev, html){
 }
 let viewer = null, current = null;
 let allRows = [], sortKey = 'affinity_nm', sortDir = 1, lastConf = null;
+let selected = null, lastContact = null, lastStructurePeptide = null;
 // Charts are sized in pixels, so they must be redrawn on resize and when a
 // hidden tab becomes visible. Keyed, because show() and run() can fire many
 // times in one session and an append-only list would re-draw the same chart
@@ -658,6 +689,84 @@ function selectCandidate(r){
     flags.push(`<span class="flag ${cls}">normal-tissue expression <b>${r.expression.risk}</b></span>`);
   }
   $('#detailFlags').innerHTML = flags.join('');
+
+  // Reset the summary: it belongs to the previously selected candidate, and
+  // leaving it up would attribute one candidate's prose to another.
+  selected = r;
+  $('#summary').innerHTML = '';
+  const b = $('#sumBtn');
+  b.disabled = false;
+  b.textContent = 'Generate';
+}
+
+/* ---- local LLM evidence summary, on demand.
+ *
+ * Costs ~8 s of GPU per click, so it is a button rather than something that
+ * fires as the reader walks down the list. The panel shows the FACTS beside
+ * the prose, because "the model only restated these" is a claim you can only
+ * check if both are visible -- and a rejected summary is displayed as a
+ * rejection, since the guardrail firing is the interesting case. */
+async function generateSummary(){
+  const r = selected;
+  if (!r) return;
+  const b = $('#sumBtn');
+  b.disabled = true; b.textContent = 'Generating…';
+  $('#summary').innerHTML =
+    `<div class="sumwrap"><div class="sumbody" style="color:var(--muted)">` +
+    `Running qwen3:8b locally on the GB10 — about 8 seconds. No text leaves the machine.` +
+    `</div></div>`;
+
+  const body = {
+    candidate_id: r.candidate_id, peptide: r.peptide, wt_peptide: r.wt_peptide,
+    allele: r.allele, affinity_nm: r.affinity_nm, wt_affinity_nm: r.wt_affinity_nm,
+    affinity_percentile: r.affinity_percentile, binder_class: r.binder_class,
+    wt_binder_class: r.wt_binder_class, dai: r.dai, mutation_site: r.mutation_site,
+    self_verdict: r.self_match ? 'matches a normal human protein' : null,
+    self_protein: r.self_match ? r.self_match.protein : null,
+  };
+  // Carry the structural evidence through when the open structure is this peptide.
+  if (lastContact && lastContact.available && lastContact.min_distance_a != null
+      && lastStructurePeptide === r.peptide) body.contact = lastContact;
+
+  try{
+    const d = await jget('/api/report', {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify(body)
+    });
+    const facts = (d.facts || []).map(x => `<li>· ${x}</li>`).join('');
+    const ok = d.verified && d.summary;
+    const prose = ok ? d.summary
+      : `<b>Summary rejected.</b> ${d.rejected_reason || 'verification failed'}.`
+        + (d.invented_numbers && d.invented_numbers.length
+           ? `<br>Numbers absent from the evidence: <b>${d.invented_numbers.join(', ')}</b>.` : '')
+        + (d.banned_claims && d.banned_claims.length
+           ? `<br>Unlicensed claims: <b>${d.banned_claims.join(', ')}</b>.` : '')
+        + (d.fallback
+           ? `<div style="margin-top:9px;color:var(--muted)"><b>Deterministic template instead:</b>
+              <br>${d.fallback}<br><i style="font-size:11px">${d.fallback_note||''}</i></div>` : '');
+
+    $('#summary').innerHTML = `
+      <div class="sumwrap">
+        <div class="sumbody${ok ? '' : ' bad'}">${prose}</div>
+        <div class="sumfacts">
+          <div class="eyebrow" style="margin-bottom:5px">the only facts the model was given</div>
+          <ul>${facts}</ul>
+        </div>
+        <div class="summeta">
+          <span>${d.model || 'local model'}</span>
+          <span>·</span><span>${d.wall_seconds ?? '—'} s</span>
+          <span>·</span><span>generated locally</span>
+          <span style="margin-left:auto" class="${ok?'ok':'no'}">
+            ${ok ? '✓ verified against the facts above' : '✕ rejected by the guardrails'}</span>
+        </div>
+        <div class="sumdisc">${d.disclaimer || ''}</div>
+      </div>`;
+  }catch(e){
+    $('#summary').innerHTML =
+      `<div class="sumwrap"><div class="sumbody bad">Could not reach the local model: ${e.message}</div></div>`;
+  }finally{
+    b.disabled = false; b.textContent = 'Regenerate';
+  }
 }
 
 /* ---- confidence. Two decimals, not three: our own data records a
@@ -892,7 +1001,11 @@ const PARAMS = new URLSearchParams(location.search);
     renderConf(s);
     const leg = $('#legPep');
     if(leg) leg.textContent = s.role === 'wild_type' ? 'Wild-type peptide' : 'Tumour peptide';
-    try{ renderContact(await jget(`/api/contact/${id}`)); }catch(e){ $('#contact').innerHTML=''; }
+    try{
+      lastContact = await jget(`/api/contact/${id}`);
+      lastStructurePeptide = (byId[id] || {}).peptide || null;
+      renderContact(lastContact);
+    }catch(e){ lastContact = null; $('#contact').innerHTML=''; }
     try{
       const conf = await jget(`/api/confidence/${id}`);
       lastConf = conf;
@@ -1116,6 +1229,7 @@ const PARAMS = new URLSearchParams(location.search);
   refreshNet(); refreshGpu();
   setInterval(refreshGpu, 2000);
   $('#run').onclick = run;
+  $('#sumBtn').onclick = generateSummary;
 
   if (PARAMS.has('allele')) $('#al').value = PARAMS.get('allele');
   if (PARAMS.has('structure')) await show(PARAMS.get('structure'));

@@ -1,17 +1,23 @@
 #!/usr/bin/env bash
 # Serve the dashboard from the Nano, reachable over the tailnet and nowhere else.
 #
-# BIND DEFAULTS TO THE TAILSCALE ADDRESS, NOT 0.0.0.0, AND THAT IS DELIBERATE.
-# Binding to all interfaces would also publish the dashboard on whatever Wi-Fi
-# the machine happens to be joined to -- including a conference network on demo
-# day. The tailnet address is private to your own devices.
+# BIND DEFAULTS TO LOOPBACK. Reach it from another machine with an SSH tunnel:
+#
+#   ssh -N -L 8420:127.0.0.1:8420 hp1@<nano>     then open http://127.0.0.1:8420
+#
+# Do NOT default this to 0.0.0.0 or to the Tailscale address. The tailnet this
+# machine is on is a SHARED HACKATHON TAILNET -- every participant's laptop is a
+# peer on it under one account -- so binding there publishes the dashboard to
+# the whole event, and 0.0.0.0 additionally publishes it to the venue Wi-Fi.
+# An SSH tunnel needs no listener beyond loopback and reuses access the person
+# already has.
 #
 #   ./scripts/serve.sh            # start (or restart) in a tmux session
 #   ./scripts/serve.sh status     # is it up, and on what address
 #   ./scripts/serve.sh logs       # tail the log
 #   ./scripts/serve.sh stop       # stop it
 #
-#   BIND=127.0.0.1 ./scripts/serve.sh    # loopback only; reach it by SSH tunnel
+#   BIND=100.x.y.z ./scripts/serve.sh    # only on a tailnet you actually control
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -20,11 +26,7 @@ SESSION="${SESSION:-neofold}"
 PORT="${PORT:-8420}"
 LOG="$ROOT/.serve.log"
 
-# Prefer the tailnet address; fall back to loopback if Tailscale is not up.
-if [ -z "${BIND:-}" ]; then
-  BIND="$(tailscale ip -4 2>/dev/null | head -1 || true)"
-  [ -n "$BIND" ] || BIND=127.0.0.1
-fi
+BIND="${BIND:-127.0.0.1}"
 
 VENV="$ROOT/.venv-app"
 [ -d "$VENV" ] || VENV="$ROOT/.venv"
