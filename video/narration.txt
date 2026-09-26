@@ -9,6 +9,11 @@
 # SPOKEN, not the way they are written in the docs: "two and a half angstroms",
 # not "2.5 Å".
 
+@ meta | tooling card -- the joke is that the voice saying this is the proof
+Quick note before we start. We thought it would be funny to make the video on
+the Nano as well. So this voice, the music, the diagrams, and every single
+frame were generated on the box. No cloud. Obviously.
+
 @ hook | title card, then the Rosie facts as type
 In twenty twenty-four, a dog named Rosie was dying of cancer. Her owner is a
 machine learning engineer, not a biologist. He had her tumour sequenced, used

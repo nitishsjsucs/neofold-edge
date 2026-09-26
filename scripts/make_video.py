@@ -42,8 +42,12 @@ ACCENT = (168, 199, 250)
 GOOD = (111, 214, 111)
 BAD = (248, 81, 73)
 XFADE = 0.45                       # seconds of crossfade between shots
-VOICE = "en_GB-alan-medium"
-LENGTH_SCALE = "0.97"              # slightly quicker than default
+# A slower read pitched down a little is most of what reads as "documentary
+# narrator". It is a register, not an impersonation -- we are not cloning
+# anyone's voice.
+VOICE = "en_US-norman-medium"
+LENGTH_SCALE = "1.10"              # slower than default: measured, unhurried
+PITCH = 0.94                       # ~6% down, tempo corrected back
 
 FONT_DIR = pathlib.Path("/usr/share/fonts/truetype/dejavu")
 F_REG, F_BOLD, F_MONO = (FONT_DIR / "DejaVuSans.ttf",
@@ -75,15 +79,42 @@ def render_audio(scenes: list[dict]) -> None:
         sys.exit(f"voice model missing: {model}")
     for s in scenes:
         wav = OUT / f"vo-{s['id']}.wav"
-        subprocess.run(["piper", "-m", str(model), "-f", str(wav),
+        raw = OUT / f"raw-{s['id']}.wav"
+        subprocess.run(["piper", "-m", str(model), "-f", str(raw),
                         "--length_scale", LENGTH_SCALE],
                        input=s["text"].encode(), check=True,
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Drop the pitch, then correct the tempo back so the read stays at the
+        # speed piper produced -- resampling alone would also speed it up.
+        subprocess.run([ffmpeg(), "-y", "-i", str(raw), "-af",
+                        f"asetrate=22050*{PITCH},aresample=22050,"
+                        f"atempo={1/PITCH:.4f}", str(wav)],
+                       check=True, capture_output=True)
         with wave.open(str(wav)) as w:
             s["dur"] = w.getnframes() / w.getframerate()
         print(f"  {s['id']:10} {s['dur']:5.1f}s  {s['text'][:58]}…")
     total = sum(s["dur"] for s in scenes)
     print(f"  {'TOTAL':10} {total:5.1f}s  ({int(total//60)}:{int(total%60):02d})")
+
+
+def write_cues(scenes: list[dict], gap: float) -> pathlib.Path:
+    """Scene start times, so the score can be cued to the edit rather than
+    merely laid under it."""
+    import json
+    out, at = {}, 0.0
+    for s in scenes:
+        out[s["id"]] = {"start": round(at, 3), "dur": round(s["dur"], 3)}
+        at += s["dur"] + gap
+    path = OUT / "cues.json"
+    path.write_text(json.dumps({"scenes": out, "total": round(at, 3)}, indent=2))
+    return path
+
+
+def make_music(cues: pathlib.Path) -> pathlib.Path:
+    dest = OUT / "music.wav"
+    subprocess.run([sys.executable, str(ROOT / "scripts" / "make_music.py"),
+                    str(cues), str(dest)], check=True)
+    return dest
 
 
 def concat_audio(scenes: list[dict]) -> pathlib.Path:
@@ -218,6 +249,31 @@ def card_stat(value: str, label: str, sub: str = "", colour=ACCENT):
     return im
 
 
+def card_meta():
+    Image, ImageDraw, _ = _img()
+    im = canvas(); d = ImageDraw.Draw(im)
+    ft, fs, fm = font(F_BOLD, 52), font(F_REG, 27), font(F_MONO, 26)
+    d.text((W/2, 210), "we thought it would be funny", font=ft, fill=INK, anchor="ma")
+    d.text((W/2, 274), "to make the video on the Nano too", font=ft, fill=INK, anchor="ma")
+
+    rows = [("voice",     "piper · en_US-norman  (neural TTS)"),
+            ("music",     "additive synthesis, numpy  (original)"),
+            ("diagrams",  "cairosvg"),
+            ("frames",    "pillow  ·  3,700 of them"),
+            ("encode",    "ffmpeg")]
+    lw = max(d.textlength(a, font=fs) for a, _ in rows)
+    x0 = W/2 - (lw + 30 + 470) / 2
+    y = 430
+    for label, val in rows:
+        d.text((x0 + lw, y), label, font=fs, fill=MUTED, anchor="ra")
+        d.text((x0 + lw + 30, y), val, font=fm, fill=INK, anchor="la")
+        y += 52
+    d.line([(x0 - 20, 412), (x0 + lw + 500, 412)], fill=(48, 54, 61), width=2)
+    d.text((W/2, y + 46), "nothing left the box, including this sentence",
+           font=fs, fill=GOOD, anchor="ma")
+    return im
+
+
 def card_close():
     Image, ImageDraw, _ = _img()
     im = canvas(); d = ImageDraw.Draw(im)
@@ -256,6 +312,7 @@ def build_shots(scenes: list[dict]) -> dict[str, list[dict]]:
     struct = Image.open(IMG / "structure.png").convert("RGB")
 
     return {
+        "meta": [{"kind": "still", "im": card_meta, "motion": "breathe"}],
         "hook": [
             {"kind": "still", "im": card_title, "motion": "breathe"},
             {"kind": "still", "im": lambda: card_text([
@@ -412,12 +469,25 @@ def render_video(scenes: list[dict], shots: dict, dest: pathlib.Path) -> None:
     print(f"  {'video':10} {written:5d} frames  ({written / FPS:.1f}s)")
 
 
-def mux(video: pathlib.Path, audio: pathlib.Path, dest: pathlib.Path) -> None:
+def mux(video: pathlib.Path, vo: pathlib.Path, music: pathlib.Path | None,
+        dest: pathlib.Path) -> None:
+    """Narration on top, score underneath and sidechain-ducked by it, so the
+    music opens up between sentences instead of fighting them."""
+    if music is None:
+        fc = "[1:a]loudnorm=I=-16:TP=-1.5:LRA=11[a]"
+        ins = [ffmpeg(), "-y", "-i", str(video), "-i", str(vo)]
+    else:
+        fc = ("[1:a]loudnorm=I=-16:TP=-1.5:LRA=11,asplit=2[vo][key];"
+              "[2:a]volume=0.42[mu];"
+              "[mu][key]sidechaincompress=threshold=0.03:ratio=9:"
+              "attack=8:release=420:makeup=1[duck];"
+              "[vo][duck]amix=inputs=2:duration=longest:normalize=0,"
+              "alimiter=limit=0.95[a]")
+        ins = [ffmpeg(), "-y", "-i", str(video), "-i", str(vo), "-i", str(music)]
     subprocess.run(
-        [ffmpeg(), "-y", "-i", str(video), "-i", str(audio),
-         "-c:v", "copy", "-c:a", "aac", "-b:a", "160k",
-         "-af", "loudnorm=I=-16:TP=-1.5:LRA=11",      # broadcast-ish levelling
-         "-shortest", "-movflags", "+faststart", str(dest)],
+        ins + ["-filter_complex", fc, "-map", "0:v", "-map", "[a]",
+               "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+               "-shortest", "-movflags", "+faststart", str(dest)],
         check=True, capture_output=True)
 
 
@@ -443,6 +513,9 @@ def main() -> None:
     print("audio track:")
     track = concat_audio(scenes)
     print(f"  {track.name}")
+    print("score:")
+    cues = write_cues(scenes, gap=0.35)
+    music = make_music(cues)
 
     print("frames:")
     shots = build_shots(scenes)
@@ -450,7 +523,7 @@ def main() -> None:
     render_video(scenes, shots, silent)
 
     dest = ROOT / "video" / "neofold-edge-demo.mp4"
-    mux(silent, track, dest)
+    mux(silent, track, music, dest)
     mb = dest.stat().st_size / 1e6
     print(f"\nwrote {dest.relative_to(ROOT)}  ({mb:.1f} MB)")
 
