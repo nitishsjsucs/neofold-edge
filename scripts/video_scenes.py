@@ -255,13 +255,6 @@ def build(t, dur):
         text(d, (x + w, y - 30), label, "r", 30, MUTED, "ra", min(1, p * 2))
         if note:
             text(d, (x, y + bh + 16), note, "m", 25, FAINT, "la", window(t, at + 0.5, 0.5))
-        if i:
-            pa = window(t, at - 0.25, 0.4)
-            if pa > 0:
-                yy = y - 58
-                d.line([(x + 26, yy - 26), (x + 26, yy)], fill=fade(FAINT, pa), width=3)
-                d.polygon([(x + 26, yy + 9), (x + 18, yy - 2), (x + 34, yy - 2)],
-                          fill=fade(FAINT, pa))
     # Hand the last beat to the real interface, cross-dissolved in.
     ui = window(t, 5.4, 0.7)
     if ui > 0:
@@ -315,16 +308,13 @@ def wow(t, dur):
     if p > 0:
         a, dy = rise(p, 20)
         text(d, (W / 2, fy + rh + 68 + dy),
-             "an exact match to a healthy human protein", "b", 46,
-             RED, "ma", a)
+             "= ERK2, a healthy human protein", "b", 50, RED, "ma", a)
     p = window(t, 5.3, 0.7)
     if p > 0:
         a, dy = rise(p, 16)
         text(d, (W / 2, fy + rh + 136 + dy),
-             "ERK2 — the DFG motif is in almost every human kinase", "r", 31,
+             "the DFG motif is in almost every human kinase", "r", 31,
              MUTED, "ma", a)
-        text(d, (W / 2, fy + rh + 182 + dy),
-             "a therapy aimed at it would attack the patient", "r", 31, MUTED, "ma", a)
     p = window(t, 6.5, 0.6)
     if p > 0:
         a, dy = rise(p, 14)
