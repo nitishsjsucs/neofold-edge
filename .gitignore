@@ -7,3 +7,5 @@ msa_cache/
 out/
 .pytest_cache/
 data/reference/*.fasta
+video/build/
+video/*.mp4
