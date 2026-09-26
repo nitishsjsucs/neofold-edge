@@ -48,6 +48,15 @@ case "${1:-start}" in
 esac
 
 tmux kill-session -t "$SESSION" 2>/dev/null || true
+
+# tmux kill-session returns before the pane process has actually exited, so
+# starting straight away races the old uvicorn and the new one dies with
+# EADDRINUSE. Wait for the port to clear.
+for _ in $(seq 1 20); do
+  (ss -ltn 2>/dev/null || netstat -ltn 2>/dev/null) | grep -q ":$PORT " || break
+  sleep 0.5
+done
+
 tmux new-session -d -s "$SESSION" \
   "cd '$ROOT' && . '$VENV/bin/activate' && exec python -m uvicorn app.main:app \
    --host '$BIND' --port '$PORT' >> '$LOG' 2>&1"
