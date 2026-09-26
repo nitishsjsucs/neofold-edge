@@ -30,29 +30,18 @@ import sys
 import wave
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
 IMG = ROOT / "docs" / "img"
 OUT = ROOT / "video" / "build"
 VOICES = pathlib.Path.home() / "voices"
 
-W, H, FPS = 1920, 1080, 30
-BG = (13, 17, 23)                  # #0d1117, the project's canvas
-INK = (230, 237, 243)
-MUTED = (139, 148, 158)
-ACCENT = (168, 199, 250)
-GOOD = (111, 214, 111)
-BAD = (248, 81, 73)
-XFADE = 0.45                       # seconds of crossfade between shots
-# Kokoro (82M, StyleTTS2 architecture + ISTFTNet vocoder). Markedly better
-# prosody than Piper: it stresses the operative word and honours punctuation as
-# phrasing rather than as a fixed pause. 1.3 s to generate 7 s of audio here.
-VOICE = "af_heart"
-SPEED = 1.04                       # just above Guo's 145-165 wpm engagement dip
-KOKORO_DIR = pathlib.Path.home() / "voices" / "kokoro"
+from video_theme import FPS, H, SCENE_XFADE, W          # noqa: E402
 
-FONT_DIR = pathlib.Path("/usr/share/fonts/truetype/dejavu")
-F_REG, F_BOLD, F_MONO = (FONT_DIR / "DejaVuSans.ttf",
-                         FONT_DIR / "DejaVuSans-Bold.ttf",
-                         FONT_DIR / "DejaVuSansMono.ttf")
+# Kokoro (82M, StyleTTS2 + ISTFTNet). Better prosody than Piper: it stresses
+# the operative word and reads punctuation as phrasing.
+VOICE = "af_heart"
+SPEED = 1.04                       # ~166 wpm, just above Guo's engagement dip
+KOKORO_DIR = pathlib.Path.home() / "voices" / "kokoro"
 
 
 def ffmpeg() -> str:
@@ -141,46 +130,31 @@ def concat_audio(scenes: list[dict]) -> pathlib.Path:
 sys.path.insert(0, str(ROOT / "scripts"))
 
 
-def scene_frame(sid: str, t_s: float, dur: float, drift: float):
-    """One frame, with a slow global push so a held frame still breathes."""
-    from PIL import Image
+def scene_frame(sid: str, t_s: float, dur: float, text: str):
+    """One frame. No drift push and no global time-warp: a capture is pasted
+    1:1 and held, and its markers are timed from the narration itself."""
     import video_scenes as vs
-    from video_anim import H as VH, W as VW
-
-    nominal = vs.NOMINAL.get(sid, dur)
-    # Stretch the authored timeline toward the narration length, but never by
-    # more than 1.7x -- past that the motion reads as sluggish rather than calm,
-    # so the remainder is held instead.
-    s = min(1.7, max(1.0, dur / max(0.5, nominal)))
-    im = vs.SCENES[sid](t_s / s, dur)
-
-    if drift > 0:
-        sc = 1.0 + drift
-        nw, nh = int(VW * sc), int(VH * sc)
-        im = im.resize((nw, nh), Image.LANCZOS)
-        im = im.crop(((nw - VW) // 2, (nh - VH) // 2,
-                      (nw - VW) // 2 + VW, (nh - VH) // 2 + VH))
-    return im
+    return vs.SCENES[sid](t_s, dur, text)
 
 
 # ------------------------------------------------------------------- encoding
 def render_video(scenes: list[dict], dest: pathlib.Path) -> None:
     from PIL import Image
     from video_anim import canvas
+
     proc = subprocess.Popen(
         [ffmpeg(), "-y", "-f", "rawvideo", "-pix_fmt", "rgb24",
          "-s", f"{W}x{H}", "-r", str(FPS), "-i", "pipe:0",
-         "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "19",
+         "-an", "-c:v", "libx264", "-preset", "medium", "-crf", "18",
          "-pix_fmt", "yuv420p", str(dest)],
         stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    prev = None
-    xf = int(XFADE * FPS)
-    written = 0
+    prev, written = None, 0
+    xf = int(SCENE_XFADE * FPS)
     for s in scenes:
         n = max(1, int(round(s["dur"] * FPS)))
         for i in range(n):
-            f = scene_frame(s["id"], i / FPS, s["dur"], 0.016 * (i / n))
+            f = scene_frame(s["id"], i / FPS, s["dur"], s["text"])
             if prev is not None and i < xf:
                 f = Image.blend(prev, f, (i + 1) / xf)
             proc.stdin.write(f.tobytes())
@@ -188,7 +162,7 @@ def render_video(scenes: list[dict], dest: pathlib.Path) -> None:
         prev = f
         print(f"  {s['id']:10} {n:5d} frames  ({s['dur']:.1f}s)")
 
-    for i in range(FPS):                      # fade out rather than cut
+    for i in range(FPS):
         proc.stdin.write(Image.blend(prev, canvas(), (i + 1) / FPS).tobytes())
         written += 1
     proc.stdin.close(); proc.wait()
@@ -247,6 +221,17 @@ def main() -> None:
     print("score:")
     cues = write_cues(scenes, gap=0.35)
     music = make_music(cues)
+
+    print("cues:")
+    import video_plates as vp
+    import video_scenes as vs
+    for s in scenes:
+        if s["id"] not in vs.CUES:
+            continue
+        capture, cues = vs.CUES[s["id"]]
+        resolved = vp.plan([dict(c, scale=vp.pick_scale(capture, c["region"]))
+                            for c in cues], s["text"], s["dur"])
+        print(vp.describe(s["id"], resolved, s["dur"]))
 
     silent = OUT / "silent.mp4"
     if a.remux:
