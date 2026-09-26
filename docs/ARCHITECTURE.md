@@ -56,7 +56,7 @@ flowchart TD
 
 ## 2. Module map
 
-Twelve modules, 2,493 lines. Each owns one stage and is tested independently (124 tests, 1,234 lines).
+Twelve modules, 2,493 lines. Each owns one stage and is tested independently (125 tests, 1,234 lines).
 
 | Module | Lines | Responsibility | The non-obvious part |
 |---|---|---|---|
@@ -298,7 +298,7 @@ The omissions are ranked by measured effect size in [SCIENCE.md](SCIENCE.md) §5
 ## 8. Testing
 
 ```bash
-pytest -q        # 124 tests
+pytest -q        # 125 tests
 ```
 
 The tests worth knowing about:

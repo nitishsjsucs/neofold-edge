@@ -308,7 +308,10 @@ output writing). That is what batching amortises.
 **Local LLM [M]:** qwen3:8b via Ollama CUDA, **100% GPU**, 5.7 tok/s, 91% utilisation, 29.3 W,
 2,411 MHz. `keep_alive: 0` frees the GPU in ~3 s.
 
-**Scaling:** 1 Nano = 100 candidates/hour [M]. 2 → ~200, 4 → ~400 — **[P], never observed.**
+**Scaling:** 1 Nano = 100 candidates/hour batched [M] (56/hour one at a time [M]).
+2 → **200** (100% efficient), 4 → **367** (92%) — **[P], never observed.** Four nodes is 367 and
+not 400 because a 22-candidate shortlist divides into ⌈22/4⌉ = 6 rounds with the last one half
+idle: 22/24 = 92% before any network effect. Quote 367. The dashboard computes the same number.
 Published DGX Spark cluster work measures NCCL all-reduce at ~10.2 GB/s (≈40% of raw RDMA), which
 matters for distributed training and little for a queue of independent jobs.
 
@@ -339,8 +342,8 @@ failure point. **Prioritisation is.**
 
 ### 5.11 Codebase
 
-124 tests passing · 12 modules, 2,493 lines · 16 API endpoints · ~12,700 lines of sourced research
-notes · 28 visual assets.
+125 tests passing · 12 modules, 2,493 lines · 16 API endpoints · ~12,700 lines of sourced research
+notes · 25 visual assets.
 
 ---
 

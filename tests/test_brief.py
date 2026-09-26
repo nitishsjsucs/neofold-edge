@@ -99,6 +99,18 @@ def test_hardware_doc_matches_the_dashboard_projection():
     assert "~400" not in hw, "the old unreconciled projection is back"
 
 
+def test_no_doc_still_quotes_the_unreconciled_projection():
+    """HARDWARE.md was not the only place that said ~400."""
+    rows = _node_rows()
+    good = str(rows["4 nodes"]["candidates_per_hour"])
+    for doc in ["README.md", "docs/HARDWARE.md", "docs/BENCHMARKS.md",
+                "docs/AGENT-BRIEF.md", "docs/ARCHITECTURE.md"]:
+        text = (ROOT / doc).read_text()
+        for bad in ["~400", "400 candidates/hour", "400/hour"]:
+            assert bad not in text, (
+                f"{doc} quotes {bad}; the reconciled figure is {good}/hour")
+
+
 def test_multi_node_rows_are_labelled_projections():
     for label, row in _node_rows().items():
         if row["nodes"] > 1:

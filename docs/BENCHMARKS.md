@@ -288,7 +288,7 @@ Multi-node figures are **projections** and labelled as such everywhere they appe
 ## 4. Reproducing these
 
 ```bash
-pytest -q                          # 124 tests
+pytest -q                          # 125 tests
 
 python scripts/validate_screen.py  # → benchmarks/auc.json
                                    #   benchmarks/screen_validation.json
