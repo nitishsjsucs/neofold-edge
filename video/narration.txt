@@ -1,55 +1,64 @@
-# Narration for the 2-minute demo video.
+# Narration for the demo video.
 #
 # Each scene is "@ id | shot note" followed by its spoken text; the id matches a
-# renderer in scripts/video_scenes.py. scripts/make_video.py renders one clip per
-# scene and times that scene's animation to the measured clip length, so a line
-# can be rewritten and re-recorded without touching the rest of the film.
+# renderer in scripts/video_scenes.py. make_video.py records one clip per scene
+# and times that scene's animation to the measured clip length.
 #
-# Written to be HEARD, not read: contractions, short sentences, varied openings,
-# and numbers spelled the way they should be spoken ("two and a half angstroms",
-# not "2.5 Å"). Say "the Nano", never "the box".
+# TWO HARD BUDGETS, both from research/research-demo-video.md:
+#   1. ~290 words. At Amy's measured 158 wpm that is under two minutes. Every
+#      new sentence has to evict an old one.
+#   2. Readable characters on screen, not spoken words, is the binding limit:
+#      about 20 characters per second (Netflix's subtitle ceiling). A frame
+#      nobody can finish reading is not doing any work.
+#
+# ORDER MATTERS. `what` comes before `hook`: a viewer who stops at 45 seconds
+# should already know what this is. Leading with Rosie alone means they leave
+# having watched a dog-cancer documentary.
+#
+# Written to be HEARD: contractions, short sentences, varied openings, numbers
+# spelled as spoken. Say "the Nano", never "the box".
 
-@ meta | tooling card -- the voice reading this is itself the evidence
-Quick thing first. We thought it'd be funny to make this video on the Nano too.
-So this voice, the music, every frame -- all of it came off that machine.
-Obviously.
+@ meta | pre-roll joke, deliberately short
+Quick thing: we made this whole video on the Nano. The voice, the music, every
+frame.
+
+@ what | THE ONE-LINER. what it is, in one sentence, before anything else
+NeoFold Edge takes a tumour's DNA and picks the targets a cancer vaccine should
+aim at. It runs on one small computer, completely offline.
 
 @ hook | Rosie, then the 75% counting up
-In twenty twenty-four, a dog named Rosie was dying of cancer. Her owner isn't a
-biologist -- he's a machine learning engineer. He had her tumour sequenced, used
-AI to find the mutations that mattered, and designed her a vaccine. Her biggest
+Here's why that matters. In twenty twenty-four, a dog named Rosie was dying of
+cancer. Her owner isn't a biologist. He's an engineer. He had her tumour
+sequenced, used AI to pick the targets, and designed her a vaccine. Her biggest
 tumour shrank by three quarters.
 
 @ question | eight cloud steps stacking up against one
-So why can't every hospital do that? Here's the catch. The input is a human
-genome. It identifies the patient, and partly their family. In most places it
-can't legally leave the building. Sending it out doesn't cost a network hop. It
-costs weeks.
+So why can't every hospital do that? The input is a human genome. It identifies
+the patient, and their family. In most places it can't legally leave the
+building. Sending it out costs weeks.
 
 @ problem | 1,890 dots dimming to the fifty that matter
 And the hard part was never making the vaccine. It's choosing what goes in it.
-One tumour throws up about nineteen hundred candidate fragments. Maybe fifty are
-real. In the largest trial ever run, of the best candidates anyone could
-nominate, six percent worked.
+One tumour gives about nineteen hundred candidates. Maybe fifty are real. In the
+biggest trial ever run, six percent worked.
 
 @ build | the funnel, actually funnelling
-That's what NeoFold Edge does. It screens all nineteen hundred in nine seconds.
-Cuts anything matching a healthy human protein. Folds the survivors in three
+So here's what it does. Screens all nineteen hundred in nine seconds. Cuts
+anything matching a healthy human protein. Folds the survivors in three
 dimensions on the GPU. Then explains every one in plain English.
 
 @ wow | rows arrive anonymous, then the surround dims away
-Watch this one. It comes from KIT, a real cancer driver. By every conventional
+Watch this one. It's from KIT, a real cancer driver. By every conventional
 measure it ranked first. It's also an exact match to a healthy human protein.
-Target that, and you attack the patient. Our filter caught it.
+Target that, and you attack the patient.
 
 @ nano | four model chips, memory bar, watts
-Four models, all live at once. Three neural networks and a physics engine. That
-takes a hundred and twenty-eight gigabytes of unified memory, and thirty-eight
-watts. About what a laptop pulls.
+Four models live at once. Three neural networks and a physics engine. A hundred
+and twenty-eight gigabytes of unified memory. Thirty-eight watts.
 
 @ proof | 2.5 against 2.7, then the thirteen-minute bar
-Does it work? We predicted one key atomic contact at two and a half angstroms.
-The crystal says two point seven. A whole tumour takes about thirteen minutes.
+Does it work? We predicted a key atomic contact at two and a half angstroms. The
+crystal says two point seven. A whole tumour takes thirteen minutes.
 
-@ close | tagline and repo
+@ close | tagline and repo, and nothing else
 A cancer research lab that fits on a desk. And never phones home.

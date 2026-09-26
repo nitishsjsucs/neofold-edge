@@ -34,6 +34,23 @@ ROWS = [
 FLAG = next(i for i, r in enumerate(ROWS) if r[6])
 
 
+_SHOT: dict = {}
+
+
+def real_ui():
+    """The actual dashboard, as captured. The drawn scenes are far more legible
+    at 1080p, but a demo that never shows the real interface is a presentation,
+    not a demo -- and judging guidance is explicit that presentations lose."""
+    if "dash" not in _SHOT:
+        from pathlib import Path
+        p = Path(__file__).resolve().parent.parent / "docs" / "img" / "dashboard.png"
+        im = Image.open(p).convert("RGB")
+        sc = min((W - 120) / im.width, (H - 200) / im.height)
+        _SHOT["dash"] = im.resize((int(im.width * sc), int(im.height * sc)),
+                                  Image.LANCZOS)
+    return _SHOT["dash"]
+
+
 def _bgdraw():
     im = canvas()
     return im, ImageDraw.Draw(im)
@@ -45,35 +62,49 @@ def eyebrow(d, y, s, alpha=1.0):
 
 # --------------------------------------------------------------------- meta
 def meta(t, dur):
+    """Pre-roll joke. Kept short and sparse: it runs before the one-liner, so
+    every character it spends is a character the product does not get."""
     im, d = _bgdraw()
-    a, dy = rise(window(t, 0.1, 0.7))
-    text(d, (W / 2, 168 + dy), "we thought it'd be funny", "b", 58, INK, "ma", a)
-    a2, dy2 = rise(window(t, 0.3, 0.7))
-    text(d, (W / 2, 240 + dy2), "to make this video on the Nano too", "b", 58,
-         INK, "ma", a2)
-
-    rows = [("voice", "piper neural TTS"), ("music", "synthesised, numpy"),
-            ("diagrams", "cairosvg"), ("frames", "pillow"), ("encode", "ffmpeg")]
-    y0 = 430
-    lw = max(d.textlength(a_, font=font("r", 30)) for a_, _ in rows)
-    x0 = W / 2 - (lw + 40 + 420) / 2
-    la = window(t, 0.75, 0.4)
-    if la > 0:
-        d.line([(x0 - 24, y0 - 34), (x0 - 24 + (lw + 40 + 460) * out_cubic(la),
-                                     y0 - 34)], fill=fade((48, 56, 66), la), width=2)
-    for i, (label, val) in enumerate(rows):
-        p = stagger(i, t, each=0.45, gap=0.12, delay=0.9)
-        if p <= 0:
-            continue
-        a_, dy_ = rise(p, 20)
-        text(d, (x0 + lw, y0 + i * 58 + dy_), label, "r", 30, MUTED, "ra", a_)
-        text(d, (x0 + lw + 40, y0 + i * 58 + dy_), val, "m", 29, INK, "la", a_)
+    a, dy = rise(window(t, 0.1, 0.6))
+    text(d, (W / 2, 400 + dy), "we made this video", "b", 66, INK, "ma", a)
+    a2, dy2 = rise(window(t, 0.3, 0.6))
+    text(d, (W / 2, 486 + dy2), "on the Nano too", "b", 66, INK, "ma", a2)
+    p = window(t, 1.0, 0.7)
+    if p > 0:
+        aa, ddy = rise(p, 18)
+        text(d, (W / 2, 610 + ddy), "voice · music · every frame", "m", 34,
+             MUTED, "ma", aa)
     p = window(t, 1.7, 0.6)
     if p > 0:
-        a_, dy_ = rise(p, 18)
-        text(d, (W / 2, y0 + len(rows) * 58 + 48 + dy_),
-             "nothing left the Nano, including this sentence", "r", 31, GREEN,
-             "ma", a_)
+        text(d, (W / 2, 690), "nothing left the Nano", "r", 32, GREEN, "ma", p)
+    return im
+
+
+# --------------------------------------------------------------------- what
+def what(t, dur):
+    """The one-liner. A viewer who stops at 45 seconds should still be able to
+    say what this is; leading with Rosie alone leaves them having watched a
+    dog-cancer documentary."""
+    im, d = _bgdraw()
+    a, dy = rise(window(t, 0.05, 0.6))
+    text(d, (W / 2, 300 + dy), "NeoFold Edge", "b", 104, INK, "ma", a)
+    for i, s in enumerate(["takes a tumour's DNA and picks the targets",
+                           "a cancer vaccine should aim at"]):
+        p = stagger(i, t, each=0.55, gap=0.18, delay=0.55)
+        if p <= 0:
+            continue
+        aa, ddy = rise(p, 22)
+        text(d, (W / 2, 450 + i * 60 + ddy), s, "r", 46, MUTED, "ma", aa)
+    p = window(t, 1.5, 0.7)
+    if p > 0:
+        aa, ddy = rise(p, 18)
+        y = 640 + ddy
+        for i, (lab, col) in enumerate([("one small computer", ACCENT),
+                                        ("completely offline", TEAL)]):
+            x = W / 2 + (-1 if i == 0 else 1) * 230
+            rrect(d, [x - 210, y, x + 210, y + 72], 12, fill=fade(PANEL, aa),
+                  outline=fade(col, aa), width=2)
+            text(d, (x, y + 36), lab, "b", 34, col, "mm", aa)
     return im
 
 
@@ -119,13 +150,12 @@ def hook(t, dur):
 def question(t, dur):
     """The asymmetry, built in front of you: eight steps against one."""
     im, d = _bgdraw()
-    eyebrow(d, 92, "to run this on a patient, the genome has to move", window(t, 0.0, 0.5))
+    eyebrow(d, 92, "the genome has to move", window(t, 0.0, 0.5))
 
-    cloud = ["tumour + normal sequencing data", "Data Use Certification",
-             "Data Access Committee review", "institutional signing official",
-             "Business Associate Agreement", "transfer", "inference",
-             "an outside party now holds a genome"]
-    edge = ["tumour + normal sequencing data", "inference, on the Nano", "shortlist"]
+    cloud = ["the genome", "Data Use Certification", "Access Committee review",
+             "signing official", "vendor agreement", "transfer", "inference",
+             "someone else holds it"]
+    edge = ["the genome", "inference, on the Nano", "shortlist"]
 
     cw, bh, gap = 700, 62, 14
     lx, rx = 130, W - 130 - cw
@@ -232,10 +262,17 @@ def build(t, dur):
                 d.line([(x + 26, yy - 26), (x + 26, yy)], fill=fade(FAINT, pa), width=3)
                 d.polygon([(x + 26, yy + 9), (x + 18, yy - 2), (x + 34, yy - 2)],
                           fill=fade(FAINT, pa))
-    p = window(t, 5.6, 0.7)
-    if p > 0:
-        text(d, (W / 2, 920), "then it explains every one in plain English", "r", 34,
-             INK, "ma", p)
+    # Hand the last beat to the real interface, cross-dissolved in.
+    ui = window(t, 5.4, 0.7)
+    if ui > 0:
+        shot = real_ui()
+        over = canvas()
+        od = ImageDraw.Draw(over)
+        over.paste(shot, ((W - shot.width) // 2, 128))
+        text(od, (W / 2, 86), "THE ACTUAL INTERFACE", "b", 24, FAINT, "ma", 1.0)
+        text(od, (W / 2, H - 52),
+             "every number on screen came off the Nano", "r", 30, MUTED, "ma", 1.0)
+        im = Image.blend(im, over, out_cubic(ui))
     return im
 
 
@@ -244,7 +281,7 @@ def wow(t, dur):
     """The reveal. Rows arrive anonymous; only later does one of them dim the
     rest of the screen away."""
     im, d = _bgdraw()
-    eyebrow(d, 80, "ranked by predicted binding — the strongest candidates",
+    eyebrow(d, 80, "real output from a real run · redrawn to be legible",
             window(t, 0.0, 0.4))
     x0, y0, rw, rh = 250, 108, W - 500, 58
     cols = [0, 330, 620, 810, 980, 1130]
@@ -372,32 +409,30 @@ def proof(t, dur):
 
 # -------------------------------------------------------------------- close
 def close(t, dur):
+    """The last frame a judge sees. Measured at 8x over the readable-character
+    budget before this cut, so it is now the tagline, the URL, and nothing."""
     im, d = _bgdraw()
-    a, dy = rise(window(t, 0.05, 0.7))
-    text(d, (W / 2, 390 + dy), "A cancer research lab", "b", 76, INK, "ma", a)
-    a2, dy2 = rise(window(t, 0.25, 0.7))
-    text(d, (W / 2, 480 + dy2), "that fits on a desk.", "b", 76, INK, "ma", a2)
-    a3, dy3 = rise(window(t, 0.6, 0.7))
-    text(d, (W / 2, 590 + dy3), "And never phones home.", "b", 60, TEAL, "ma", a3)
-    p = window(t, 1.2, 0.6)
+    a, dy = rise(window(t, 0.05, 0.6))
+    text(d, (W / 2, 420 + dy), "A cancer research lab", "b", 78, INK, "ma", a)
+    a2, dy2 = rise(window(t, 0.25, 0.6))
+    text(d, (W / 2, 512 + dy2), "that fits on a desk.", "b", 78, INK, "ma", a2)
+    p = window(t, 0.9, 0.6)
     if p > 0:
-        text(d, (W / 2, 730), "github.com/nitishsjsucs/neofold-edge", "m", 32,
-             ACCENT, "ma", p)
-    p = window(t, 1.6, 0.6)
+        aa, ddy = rise(p, 18)
+        text(d, (W / 2, 640 + ddy), "github.com/nitishsjsucs/neofold-edge", "m",
+             34, ACCENT, "ma", aa)
+    p = window(t, 1.4, 0.5)
     if p > 0:
-        text(d, (W / 2, 820), "HP ZGX Nano · NVIDIA GB10 · fully offline", "r", 27,
-             FAINT, "ma", p)
-        text(d, (W / 2, 900),
-             "Research prioritisation only. Every value is a prediction, not a measurement.",
-             "r", 24, AMBER, "ma", p)
+        text(d, (W / 2, 730), "research prioritisation only", "r", 26, AMBER,
+             "ma", p)
     return im
 
 
-SCENES = {"meta": meta, "hook": hook, "question": question, "problem": problem,
+SCENES = {"meta": meta, "what": what, "hook": hook, "question": question, "problem": problem,
           "build": build, "wow": wow, "nano": nano, "proof": proof, "close": close}
 
 
 # How long each scene's authored animation runs. make_video stretches the
 # timeline toward the narration length (capped), then holds the remainder.
-NOMINAL = {"meta": 2.6, "hook": 7.4, "question": 6.0, "problem": 6.0,
-           "build": 6.5, "wow": 7.3, "nano": 5.6, "proof": 4.9, "close": 2.3}
+NOMINAL = {"meta": 2.4, "what": 2.4, "hook": 7.4, "question": 6.0, "problem": 6.0,
+           "build": 6.6, "wow": 7.3, "nano": 5.6, "proof": 4.9, "close": 2.3}
