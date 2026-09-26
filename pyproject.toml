@@ -17,4 +17,14 @@ packages = ["neofold"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-q"
+# No -q here. The README documents `pytest -q`, and an inherited -q makes that
+# -qq, which hides the "124 passed" summary line -- so the documented command
+# would print a wall of warnings and no verdict.
+filterwarnings = [
+    "error::UserWarning",
+    # FastAPI 0.11x deprecates on_event in favour of lifespan. Ours is one
+    # startup hook that warms the model cache; not worth a rewrite mid-hackathon.
+    "ignore:(?s).*on_event is deprecated.*:DeprecationWarning",
+    "ignore::DeprecationWarning:starlette.*",
+    "ignore::DeprecationWarning:tensorflow.*",
+]
