@@ -167,7 +167,7 @@ def question(t, dur):
 # ------------------------------------------------------------------ problem
 def problem(t, dur):
     """1,890 candidates as 1,890 dots, dimming to the ~51 that are real."""
-    N, COLS, CELL, RAD = 1890, 70, 20, 6
+    N, COLS, CELL, RAD = 1890, 70, 21, 7
     rng = np.random.default_rng(11)
     real = set(rng.choice(N, 51, replace=False).tolist())
 
@@ -193,12 +193,12 @@ def problem(t, dur):
     p = window(t, 3.4, 0.8)
     if p > 0:
         a, dy = rise(p, 20)
-        text(d, (W / 2, 830 + dy), "about fifty are real", "b", 56, GREEN, "ma", a)
+        text(d, (W / 2, 800 + dy), "about fifty are real", "b", 60, GREEN, "ma", a)
     p = window(t, 4.4, 1.4)
     if p > 0:
-        text(d, (W / 2, 930), f"{counter(6, p, comma=False)}% of the best candidates "
+        text(d, (W / 2, 892), f"{counter(6, p, comma=False)}% of the best candidates "
              f"ever lab-tested actually worked", "r", 32, RED, "ma", clamp(p * 3))
-        text(d, (W / 2, 985), "608 nominated by 25 expert pipelines · 37 worked · TESLA, Cell 2020",
+        text(d, (W / 2, 950), "608 nominated by 25 expert pipelines · 37 worked · TESLA, Cell 2020",
              "r", 23, FAINT, "ma", window(t, 5.2, 0.6))
     return im
 
@@ -246,7 +246,7 @@ def wow(t, dur):
     im, d = _bgdraw()
     eyebrow(d, 80, "ranked by predicted binding — the strongest candidates",
             window(t, 0.0, 0.4))
-    x0, y0, rw, rh = 250, 150, W - 500, 74
+    x0, y0, rw, rh = 250, 108, W - 500, 58
     cols = [0, 330, 620, 810, 980, 1130]
 
     hp = window(t, 0.3, 0.4)
@@ -260,12 +260,12 @@ def wow(t, dur):
         a, dx = rise(p, 0)
         y = y0 + 48 + i * rh
         if i % 2 == 0:
-            rrect(d, [x0 - 20, y, x0 + rw + 20, y + rh - 8], 8, fill=fade(PANEL, a * .7))
-        text(d, (x0 + cols[0], y + rh / 2 - 4), pep, "mb", 32, INK, "lm", a)
-        text(d, (x0 + cols[1], y + rh / 2 - 4), var, "r", 29, MUTED, "lm", a)
+            rrect(d, [x0 - 20, y, x0 + rw + 20, y + rh - 6], 8, fill=fade(PANEL, a * .7))
+        text(d, (x0 + cols[0], y + rh / 2 - 3), pep, "mb", 29, INK, "lm", a)
+        text(d, (x0 + cols[1], y + rh / 2 - 3), var, "r", 27, MUTED, "lm", a)
         for j, v in enumerate([nm, wt, dai]):
-            text(d, (x0 + cols[2 + j] + 120, y + rh / 2 - 4), v, "m", 29, MUTED, "rm", a)
-        text(d, (x0 + cols[5], y + rh / 2 - 4), site, "r", 26,
+            text(d, (x0 + cols[2 + j] + 120, y + rh / 2 - 3), v, "m", 27, MUTED, "rm", a)
+        text(d, (x0 + cols[5], y + rh / 2 - 3), site, "r", 24,
              AMBER if site == "anchor" else MUTED, "lm", a)
 
     fy = y0 + 48 + FLAG * rh
@@ -277,21 +277,21 @@ def wow(t, dur):
     p = window(t, 4.2, 0.7)
     if p > 0:
         a, dy = rise(p, 20)
-        text(d, (W / 2, fy + rh + 60 + dy),
-             "this one is an exact match to a healthy human protein", "b", 44,
+        text(d, (W / 2, fy + rh + 68 + dy),
+             "an exact match to a healthy human protein", "b", 46,
              RED, "ma", a)
     p = window(t, 5.3, 0.7)
     if p > 0:
         a, dy = rise(p, 16)
-        text(d, (W / 2, fy + rh + 128 + dy),
+        text(d, (W / 2, fy + rh + 136 + dy),
              "ERK2 — the DFG motif is in almost every human kinase", "r", 31,
              MUTED, "ma", a)
-        text(d, (W / 2, fy + rh + 176 + dy),
+        text(d, (W / 2, fy + rh + 182 + dy),
              "a therapy aimed at it would attack the patient", "r", 31, MUTED, "ma", a)
     p = window(t, 6.5, 0.6)
     if p > 0:
         a, dy = rise(p, 14)
-        text(d, (W / 2, fy + rh + 250 + dy), "our filter caught it", "b", 38,
+        text(d, (W / 2, fy + rh + 252 + dy), "our filter caught it", "b", 40,
              GREEN, "ma", a)
     return im
 
