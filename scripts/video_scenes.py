@@ -80,6 +80,113 @@ def meta(t, dur):
     return im
 
 
+
+# ------------------------------------------------- real screen-capture shots
+_CAP: dict = {}
+
+
+def cap(name: str):
+    """Load a captured panel once. These are 2x device-scale grabs of the app
+    actually running, so a crop can be blown up to full frame and still hold."""
+    if name not in _CAP:
+        from pathlib import Path
+        p = Path(__file__).resolve().parent.parent / "docs" / "img" / f"{name}.png"
+        _CAP[name] = Image.open(p).convert("RGB")
+    return _CAP[name]
+
+
+def screen(name, t_, a, b, caption=None, sub=None, ease=out_cubic,
+           hl=None, hl_at=0.6, label=None):
+    """A capture pushed slowly from crop `a` to crop `b`, both given as
+    (x0,y0,x1,y1) fractions. Motion that travels toward the thing being
+    explained is the cue that measures well; a static arrow is not."""
+    src = cap(name)
+    e = ease(clamp(t_))
+    box = [a[i] + (b[i] - a[i]) * e for i in range(4)]
+    px = (box[0] * src.width, box[1] * src.height,
+          box[2] * src.width, box[3] * src.height)
+    crop = src.crop(tuple(int(v) for v in px))
+
+    top = 118 if caption else 40          # headroom for the caption
+    bw, bh = W - 120, H - top - 70
+    sc = min(bw / crop.width, bh / crop.height)
+    crop = crop.resize((max(1, int(crop.width * sc)), max(1, int(crop.height * sc))),
+                       Image.LANCZOS)
+    im = canvas()
+    ox, oy = (W - crop.width) // 2, top + (bh - crop.height) // 2
+    im.paste(crop, (ox, oy))
+    d = ImageDraw.Draw(im)
+    rrect(d, [ox - 2, oy - 2, ox + crop.width + 2, oy + crop.height + 2], 6,
+          outline=(44, 52, 62), width=2)
+
+    if label:
+        text(d, (W / 2, 48), label.upper(), "b", 22, FAINT, "ma", clamp(t_ * 4))
+    if caption:
+        ca = clamp(t_ * 3)
+        text(d, (W / 2, 84), caption, "b", 40, INK, "ma", ca)
+    if sub:
+        text(d, (W / 2, H - 40), sub, "r", 28, MUTED, "ma", window(t_, 0.35, 0.25))
+    if hl:
+        p = clamp((t_ - hl_at) / 0.18)
+        if p > 0:
+            hx = [ox + hl[0] * crop.width, oy + hl[1] * crop.height,
+                  ox + hl[2] * crop.width, oy + hl[3] * crop.height]
+            im = spotlight(im, hx, out_cubic(p), dim=0.8, ring=RED, ring_w=4)
+    return im
+
+
+# --------------------------------------------------------------- dashboard
+def dashboard(t, dur):
+    """The real interface. A demo that never shows the product is a
+    presentation, and judging guidance is explicit that presentations lose."""
+    p = t / max(0.5, dur)
+    return screen("vid-dashboard", p,
+                  (0.00, 0.00, 1.00, 1.00), (0.01, 0.30, 0.56, 0.98),
+                  label="running on the Nano",
+                  caption="the actual interface",
+                  sub="every row scored, ranked, and explained · no mock-ups")
+
+
+# --------------------------------------------------------------- structure
+def structure(t, dur):
+    p = t / max(0.5, dur)
+    return screen("vid-structure", p,
+                  (0.00, 0.30, 1.00, 1.00), (0.02, 0.62, 0.98, 1.00),
+                  label="predicted peptide–HLA complex",
+                  caption="2.5 Å predicted · 2.7 Å in the crystal",
+                  sub="the contact was chosen before the prediction was run")
+
+
+# ---------------------------------------------------------------- evidence
+def evidence(t, dur):
+    p = t / max(0.5, dur)
+    return screen("vid-roc", p,
+                  (0.00, 0.00, 1.00, 0.62), (0.02, 0.06, 0.98, 0.46),
+                  label="validated against 2,555 lab-tested peptides",
+                  caption="AUC 0.777 and 0.759",
+                  sub="and the metric that scored below random is still on screen")
+
+
+# ----------------------------------------------------------------- holdout
+def holdout(t, dur):
+    p = t / max(0.5, dur)
+    return screen("vid-holdout", p,
+                  (0.00, 0.00, 1.00, 0.72), (0.02, 0.10, 0.98, 0.58),
+                  label="nine crystals the model had never seen",
+                  caption="confidence does not predict error",
+                  sub="0.011 of ipTM against a full ångström of real error · r = −0.23")
+
+
+# ----------------------------------------------------------------- summary
+def summary(t, dur):
+    p = t / max(0.5, dur)
+    return screen("vid-summary", p,
+                  (0.00, 0.22, 1.00, 0.78), (0.01, 0.28, 0.99, 0.62),
+                  label="written on-device by qwen3:8b",
+                  caption="it only gets the facts, and every number is checked",
+                  sub="invent one and the summary is rejected")
+
+
 # --------------------------------------------------------------------- what
 def what(t, dur):
     """The one-liner. A viewer who stops at 45 seconds should still be able to
@@ -234,7 +341,7 @@ def problem(t, dur):
 
 
 # -------------------------------------------------------------------- build
-def build(t, dur):
+def funnel(t, dur):
     """The funnel, actually funnelling."""
     im, d = _bgdraw()
     eyebrow(d, 96, "NeoFold Edge · entirely offline on one HP ZGX Nano",
@@ -255,17 +362,6 @@ def build(t, dur):
         text(d, (x + w, y - 30), label, "r", 30, MUTED, "ra", min(1, p * 2))
         if note:
             text(d, (x, y + bh + 16), note, "m", 25, FAINT, "la", window(t, at + 0.5, 0.5))
-    # Hand the last beat to the real interface, cross-dissolved in.
-    ui = window(t, 5.4, 0.7)
-    if ui > 0:
-        shot = real_ui()
-        over = canvas()
-        od = ImageDraw.Draw(over)
-        over.paste(shot, ((W - shot.width) // 2, 128))
-        text(od, (W / 2, 86), "THE ACTUAL INTERFACE", "b", 24, FAINT, "ma", 1.0)
-        text(od, (W / 2, H - 52),
-             "every number on screen came off the Nano", "r", 30, MUTED, "ma", 1.0)
-        im = Image.blend(im, over, out_cubic(ui))
     return im
 
 
@@ -418,11 +514,14 @@ def close(t, dur):
     return im
 
 
-SCENES = {"meta": meta, "what": what, "hook": hook, "question": question, "problem": problem,
-          "build": build, "wow": wow, "nano": nano, "proof": proof, "close": close}
+SCENES = {"meta": meta, "what": what, "hook": hook,
+          "dashboard": dashboard, "structure": structure,
+          "evidence": evidence, "holdout": holdout, "summary": summary, "question": question, "problem": problem,
+          "funnel": funnel, "wow": wow, "nano": nano, "proof": proof, "close": close}
 
 
 # How long each scene's authored animation runs. make_video stretches the
 # timeline toward the narration length (capped), then holds the remainder.
 NOMINAL = {"meta": 2.4, "what": 2.4, "hook": 7.4, "question": 6.0, "problem": 6.0,
-           "build": 6.6, "wow": 7.3, "nano": 5.6, "proof": 4.9, "close": 2.3}
+           "funnel": 6.6, "dashboard": 8.0, "structure": 8.0,
+           "evidence": 8.0, "holdout": 8.0, "summary": 8.0, "wow": 7.3, "nano": 5.6, "proof": 4.9, "close": 2.3}

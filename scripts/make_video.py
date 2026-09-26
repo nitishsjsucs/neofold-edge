@@ -42,12 +42,12 @@ ACCENT = (168, 199, 250)
 GOOD = (111, 214, 111)
 BAD = (248, 81, 73)
 XFADE = 0.45                       # seconds of crossfade between shots
-VOICE = "en_US-amy-medium"
-# 158 wpm lands inside the 145-165 band Guo et al. measured as the engagement
-# dip across 862 edX videos. 0.95 puts the read at ~166 wpm: out of that band,
-# still far under the ~275 wpm comprehension ceiling.
-LENGTH_SCALE = "0.95"
-PITCH = 1.0                        # no shift
+# Kokoro (82M, StyleTTS2 architecture + ISTFTNet vocoder). Markedly better
+# prosody than Piper: it stresses the operative word and honours punctuation as
+# phrasing rather than as a fixed pause. 1.3 s to generate 7 s of audio here.
+VOICE = "af_heart"
+SPEED = 1.04                       # just above Guo's 145-165 wpm engagement dip
+KOKORO_DIR = pathlib.Path.home() / "voices" / "kokoro"
 
 FONT_DIR = pathlib.Path("/usr/share/fonts/truetype/dejavu")
 F_REG, F_BOLD, F_MONO = (FONT_DIR / "DejaVuSans.ttf",
@@ -72,30 +72,29 @@ def parse_narration() -> list[dict]:
     return out
 
 
+_KOKORO = None
+
+
+def kokoro():
+    global _KOKORO
+    if _KOKORO is None:
+        from kokoro_onnx import Kokoro
+        _KOKORO = Kokoro(str(KOKORO_DIR / "kokoro-v1.0.onnx"),
+                         str(KOKORO_DIR / "voices-v1.0.bin"))
+    return _KOKORO
+
+
 def render_audio(scenes: list[dict]) -> None:
+    import soundfile as sf
+
     OUT.mkdir(parents=True, exist_ok=True)
-    model = VOICES / f"{VOICE}.onnx"
-    if not model.exists():
-        sys.exit(f"voice model missing: {model}")
+    k = kokoro()
     for s in scenes:
         wav = OUT / f"vo-{s['id']}.wav"
-        raw = OUT / f"raw-{s['id']}.wav"
-        subprocess.run(["piper", "-m", str(model), "-f", str(raw),
-                        "--length_scale", LENGTH_SCALE],
-                       input=s["text"].encode(), check=True,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        if abs(PITCH - 1.0) < 1e-6:
-            raw.replace(wav)
-        else:
-            # Drop the pitch, then correct the tempo back -- resampling alone
-            # would also speed the read up.
-            subprocess.run([ffmpeg(), "-y", "-i", str(raw), "-af",
-                            f"asetrate=22050*{PITCH},aresample=22050,"
-                            f"atempo={1/PITCH:.4f}", str(wav)],
-                           check=True, capture_output=True)
-        with wave.open(str(wav)) as w:
-            s["dur"] = w.getnframes() / w.getframerate()
-        print(f"  {s['id']:10} {s['dur']:5.1f}s  {s['text'][:58]}…")
+        audio, sr = k.create(s["text"], voice=VOICE, speed=SPEED, lang="en-us")
+        sf.write(str(wav), audio, sr)
+        s["dur"] = len(audio) / sr
+        print(f"  {s['id']:10} {s['dur']:5.1f}s  {s['text'][:56]}…")
     total = sum(s["dur"] for s in scenes)
     print(f"  {'TOTAL':10} {total:5.1f}s  ({int(total//60)}:{int(total%60):02d})")
 
@@ -125,7 +124,7 @@ def concat_audio(scenes: list[dict]) -> pathlib.Path:
     lst = OUT / "audio.txt"
     gap = OUT / "gap.wav"
     subprocess.run([ffmpeg(), "-y", "-f", "lavfi", "-i",
-                    "anullsrc=r=22050:cl=mono", "-t", "0.35", str(gap)],
+                    "anullsrc=r=24000:cl=mono", "-t", "0.35", str(gap)],
                    check=True, capture_output=True)
     parts = []
     for s in scenes:
@@ -229,8 +228,8 @@ def main() -> None:
                     help="rebuild audio and re-mux onto the existing frames")
     a = ap.parse_args()
 
-    if not shutil.which("piper"):
-        sys.exit("piper not on PATH -- activate ~/media-venv")
+    if not (KOKORO_DIR / "kokoro-v1.0.onnx").exists():
+        sys.exit(f"kokoro model missing under {KOKORO_DIR}")
     OUT.mkdir(parents=True, exist_ok=True)
 
     scenes = parse_narration()

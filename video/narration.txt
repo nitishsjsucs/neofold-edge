@@ -1,28 +1,18 @@
-# Narration for the demo video.
+# Narration for the demo video. One block per scene; the id matches a renderer
+# in scripts/video_scenes.py. make_video.py records each clip and times that
+# scene's animation to the measured length.
 #
-# Each scene is "@ id | shot note" followed by its spoken text; the id matches a
-# renderer in scripts/video_scenes.py. make_video.py records one clip per scene
-# and times that scene's animation to the measured clip length.
+# Voice: Kokoro af_heart at speed 1.04 -- roughly 165 wpm, just above the
+# 145-165 engagement dip Guo et al. measured across 862 edX videos.
 #
-# TWO HARD BUDGETS, both from research/research-demo-video.md:
-#   1. ~290 words. At Amy's measured 158 wpm that is under two minutes. Every
-#      new sentence has to evict an old one.
-#   2. Readable characters on screen, not spoken words, is the binding limit:
-#      about 20 characters per second (Netflix's subtitle ceiling). A frame
-#      nobody can finish reading is not doing any work.
-#
-# ORDER MATTERS. `what` comes before `hook`: a viewer who stops at 45 seconds
-# should already know what this is. Leading with Rosie alone means they leave
-# having watched a dog-cancer documentary.
-#
-# Written to be HEARD: contractions, short sentences, varied openings, numbers
-# spelled as spoken. Say "the Nano", never "the box".
+# Budget: readable characters on screen, not spoken words, is the binding
+# limit -- about 20 per second. Say "the Nano", never "the box".
 
 @ meta | pre-roll joke, deliberately short
 Quick thing: we made this whole video on the Nano. The voice, the music, every
 frame.
 
-@ what | THE ONE-LINER. what it is, in one sentence, before anything else
+@ what | THE ONE-LINER, before anything else
 NeoFold Edge takes a tumour's DNA and picks the targets a cancer vaccine should
 aim at. It runs on one small computer, completely offline.
 
@@ -42,23 +32,51 @@ And the hard part was never making the vaccine. It's choosing what goes in it.
 One tumour gives about nineteen hundred candidates. Maybe fifty are real. In the
 biggest trial ever run, six percent worked.
 
-@ build | the funnel, actually funnelling
-So here's what it does. Screens all nineteen hundred in nine seconds. Cuts
-anything matching a healthy human protein. Folds the survivors in three
-dimensions on the GPU. Then explains every one in plain English.
+@ funnel | the funnel, actually funnelling
+So here's the funnel. Nineteen hundred candidates, screened in nine seconds on
+the CPU. Anything matching a healthy human protein gets cut. Twenty-two survive.
+The top five get folded in three dimensions.
 
-@ wow | rows arrive anonymous, then the surround dims away
-Watch this one. It's from KIT, a real cancer driver. By every conventional
+@ dashboard | THE REAL INTERFACE, pushing in from wide
+This is the actual interface, running on the Nano. Every candidate the screen
+considered, ranked, with the reason it made the cut written next to it in plain
+English. The whole funnel is on the left. Nothing here is a mock-up.
+
+@ wow | the flagged row, surround dimmed away
+Watch this row. It's from KIT, a real cancer driver, and by every conventional
 measure it ranked first. It's also an exact match to a healthy human protein.
 Target that, and you attack the patient.
 
+@ structure | the 3D complex and the pre-registered contact
+For the finalists we predict the actual three-dimensional structure. Here's the
+tumour peptide sitting in the patient's HLA molecule. We measure one contact,
+chosen in advance from a crystal structure: two and a half angstroms, against
+the crystal's two point seven.
+
+@ evidence | ROC curves and the enrichment bars, including the failure
+Does the screen work? We tested it against two and a half thousand peptides that
+were physically tested on human T-cells. Area under the curve, point seven
+eight. Five to six times better than chance. And we left our own failures on
+screen: this filter scored worse than random.
+
+@ holdout | confidence against measured error
+Here's the finding we're proudest of. Nine crystal structures the model had
+never seen. Confidence barely moves. Real error varies by a factor of two. The
+model has no idea when it's wrong, so we never rank on it.
+
+@ summary | the local LLM panel with its guardrails
+Then a language model on the same machine writes it up. It only gets the facts
+on the left, and every number it prints is checked against them. If it invents
+one, the summary is rejected.
+
 @ nano | four model chips, memory bar, watts
-Four models live at once. Three neural networks and a physics engine. A hundred
-and twenty-eight gigabytes of unified memory. Thirty-eight watts.
+All of this on one HP ZGX Nano. Four models resident at once. A hundred and
+twenty-eight gigabytes of unified memory. Thirty-eight watts, about what a
+laptop pulls.
 
-@ proof | 2.5 against 2.7, then the thirteen-minute bar
-Does it work? We predicted a key atomic contact at two and a half angstroms. The
-crystal says two point seven. A whole tumour takes thirteen minutes.
+@ proof | the thirteen-minute bar and the offline badge
+One tumour, start to finish, about thirteen minutes. No internet connection at
+any point.
 
-@ close | tagline and repo, and nothing else
+@ close | tagline and repo
 A cancer research lab that fits on a desk. And never phones home.
