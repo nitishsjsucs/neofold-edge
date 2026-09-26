@@ -1,0 +1,20 @@
+# Minimal packaging metadata. The pytest block is the load-bearing part: without
+# it, a bare `pytest` cannot import `neofold` and dies with 8 collection errors
+# on a fresh clone -- which is exactly the command the README tells you to run.
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "neofold-edge"
+version = "0.1.0"
+description = "Offline neoantigen triage on an HP ZGX Nano (NVIDIA GB10)"
+requires-python = ">=3.12"
+
+[tool.setuptools]
+packages = ["neofold"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-q"

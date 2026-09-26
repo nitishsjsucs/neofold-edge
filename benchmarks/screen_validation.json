@@ -100,5 +100,37 @@
       "precision": 0.0358,
       "enrichment": 1.314
     }
-  ]
+  ],
+  "conditional_on_presentation": {
+    "presented": 1370,
+    "responders": 49,
+    "baseline_precision": 0.03577,
+    "rules": [
+      {
+        "rule": "DAI >= 10",
+        "kept": 204,
+        "found": 10,
+        "precision": 0.04902
+      },
+      {
+        "rule": "DAI >= 2",
+        "kept": 446,
+        "found": 13,
+        "precision": 0.02915
+      },
+      {
+        "rule": "anchor mutation",
+        "kept": 331,
+        "found": 14,
+        "precision": 0.0423
+      },
+      {
+        "rule": "TCR-facing mutation",
+        "kept": 1039,
+        "found": 35,
+        "precision": 0.03369
+      }
+    ],
+    "note": "DAI fails as a standalone gate but adds precision once presentation has filtered. Any claim that 'DAI does not work' must say STANDALONE or it overstates what we measured."
+  }
 }

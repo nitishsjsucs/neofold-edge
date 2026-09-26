@@ -7,7 +7,7 @@
 Runs entirely on one HP ZGX Nano (NVIDIA GB10 Grace Blackwell). No cloud inference, no external APIs, no patient data leaving the building.
 
 ![offline](https://img.shields.io/badge/inference-100%25_local-1d9e75)
-![tests](https://img.shields.io/badge/tests-101_passing-2a78d6)
+![tests](https://img.shields.io/badge/tests-124_passing-2a78d6)
 ![screen](https://img.shields.io/badge/screen_AUC-0.777_%2F_0.759-2a78d6)
 ![structures](https://img.shields.io/badge/held--out_RMSD-1.41_%C3%85-2a78d6)
 ![power](https://img.shields.io/badge/peak_draw-38_W-1d9e75)
@@ -339,7 +339,7 @@ A tool that reports only its successes has not been tested. We found twelve erro
 
 | # | Error | How it was caught | Fix |
 |---|---|---|---|
-| 1 | Shipped a filter **worse than random** (enrichment 0.96×) | Validation against 1,947 real assay outcomes | The mutant-vs-normal ratio mostly detects **anchor** mutations — the ones pointing *into* the bun, that no immune cell can see. Demoted to an annotation |
+| 1 | Shipped a filter **worse than random** (enrichment 0.96×) | Validation against 1,947 real assay outcomes | The mutant-vs-normal ratio mostly detects **anchor** mutations — the ones pointing *into* the bun, that no immune cell can see. Demoted to an annotation. <br>*The honest caveat we also publish:* that verdict is for the threshold **used as a standalone gate**. Applied *after* presentation, a stricter cut does lift precision 3.6% → 4.9%. So we got the **role** wrong, not the whole idea — [the numbers, including the one that contradicts our own mechanism](docs/BENCHMARKS.md#11-bjerregaard-2017) |
 | 2 | Accuracy claim **3× optimistic** | Both validation crystals predate the training cutoff | Re-measured on 9 held-out structures: 1.41 Å, not 0.42 Å |
 | 3 | Labelled **a normal human peptide** a tumour target | Built the self-similarity filter afterwards | `ICDFGLARV` is verbatim ERK2. Kept in the demo as the negative control |
 | 4 | Our **near-self metric was vacuous** | It flagged literally everything | Every mutated peptide is one letter from its own healthy version. Now excluded |
@@ -390,7 +390,7 @@ open "http://127.0.0.1:8420/?run=1&tab=pane-holdout"
 For the full Nano install including Boltz-2, OpenMM and Ollama, see [BUILD-GUIDE.md](BUILD-GUIDE.md) — every step was executed on the hardware, not looked up.
 
 ```bash
-pytest -q        # 101 tests
+pytest -q        # 124 tests
 ```
 
 Regenerating the figures in this README (needs the app running, plus Chrome and Pillow):
@@ -419,7 +419,7 @@ neofold-edge/
 │   ├── construct.py      #   polyepitope assembly, exhaustive junction search
 │   └── telemetry.py      #   GB10-aware GPU telemetry
 ├── app/                  # FastAPI server + offline UI (vendored Mol*)
-├── tests/                # 101 tests
+├── tests/                # 124 tests, 1,234 lines
 ├── benchmarks/           # every measurement as JSON
 ├── data/                 # demo variants, reference sequences, proteome, GTEx
 ├── results/              # predicted structures, MD traces, holdout set

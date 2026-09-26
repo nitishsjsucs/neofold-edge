@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import math
 import os
 import socket
 import time
@@ -462,8 +463,19 @@ def benchmark() -> dict:
     Everything under "measured" was timed on the Nano. Everything under
     "projected" is arithmetic on those measurements -- we only ever had one
     Nano, so no multi-node number here was observed.
+
+    Projections start from the BATCHED rate, because batching is how the node
+    actually runs. Projecting from the sequential 64.3 s mean understated every
+    multi-node figure by ~1.8x and disagreed with docs/HARDWARE.md.
+
+    Scaling is NOT linear: with J jobs across N nodes the final round is ragged,
+    so efficiency is J / (N * ceil(J/N)). At a realistic 22-candidate shortlist
+    four nodes buy 3.7x, not 4x. Quoting a round "~400/hour" invites a follow-up
+    we could not answer honestly.
     """
     import statistics
+
+    JOBS = 22                      # a realistic shortlist depth
     path = ROOT / "benchmarks" / "measured.json"
     if not path.exists():
         return {"available": False}
@@ -472,6 +484,14 @@ def benchmark() -> dict:
     full = [r["wall_s"] for r in d["runs"] if r["msa"] is True]
     mean = statistics.mean(full)
     overhead = d["stage_split"]["fixed_overhead_s"]
+    batched_hr = d.get("batched", {}).get(
+        "candidates_per_hour", round(3600 / max(1e-6, mean - overhead)))
+
+    def projected(n: int) -> dict:
+        eff = JOBS / (n * math.ceil(JOBS / n))
+        return {"nodes": n, "label": f"{n} nodes",
+                "candidates_per_hour": round(batched_hr * n * eff),
+                "efficiency_pct": round(100 * eff), "measured": False}
 
     return {
         "available": True,
@@ -488,21 +508,22 @@ def benchmark() -> dict:
             "overhead_fraction_pct": round(100 * overhead / mean),
         },
         "projected": {
-            "note": "PROJECTED from measured single-node throughput. Not observed.",
+            "note": ("PROJECTED from the measured BATCHED single-node rate, with "
+                     f"granularity efficiency for a {JOBS}-candidate shortlist. "
+                     "Never observed -- we had one Nano."),
             "basis": d["projections"]["basis"],
             "assumptions": d["projections"]["assumptions"],
             "erosion_factors": d["projections"]["erosion_factors"],
+            "granularity_note": (
+                f"Efficiency is J/(N*ceil(J/N)) for J={JOBS}. Past this depth "
+                "extra nodes sit idle -- the ceiling is queue depth, not budget."),
             "nodes": [
                 {"nodes": 1, "label": "1 node", "candidates_per_hour": round(3600 / mean),
                  "measured": True},
-                {"nodes": 1, "label": "1 node, batched",
-                 "candidates_per_hour": d.get("batched", {}).get("candidates_per_hour",
-                                                                 round(3600 / (mean - overhead))),
+                {"nodes": 1, "label": "1 node, batched", "candidates_per_hour": batched_hr,
                  "measured": "batched" in d},
-                {"nodes": 2, "label": "2 nodes", "candidates_per_hour": round(3600 / mean * 2),
-                 "measured": False},
-                {"nodes": 4, "label": "4 nodes", "candidates_per_hour": round(3600 / mean * 4),
-                 "measured": False},
+                projected(2),
+                projected(4),
             ],
             "batched_single_node": {
                 "candidates_per_hour": d.get("batched", {}).get("candidates_per_hour"),

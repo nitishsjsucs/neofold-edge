@@ -97,9 +97,13 @@ Twelve. Each with the mechanism, because the mechanism is the transferable part.
 
 ### 3.1 We shipped a filter that was worse than random
 
-**What:** `DAI ≥ 2` as a hard gate. **Measured enrichment 0.965×** on 1,947 pairs — worse than picking at random. TESLA's reciprocal metric scored **0.412 AUC**, also below random.
+**What:** `DAI ≥ 2` as a hard gate. **Measured enrichment 0.965×** on 1,947 pairs — worse than picking at random *as a standalone gate*. TESLA's reciprocal metric scored **0.412 AUC**, also below random.
+
+**The qualifier matters, and it cuts against us.** Conditional on presentation — inside the 1,370 candidates our shipped rule keeps — a *strict* cut of DAI ≥ 10 lifts precision from 3.58% to **4.90%**. So the honest claim is not "the differential carries no signal"; it is "we used it in the wrong role at the wrong threshold." At n = 204 with 10 responders we are not defending that as a win either. Both halves are in `docs/BENCHMARKS.md` §1.1 and in `benchmarks/screen_validation.json`.
 
 **Why it was wrong:** the threshold was invented, not cited. And the stratification reveals the mechanism: DAI does *better* on anchor mutations (0.660) than TCR-facing ones (0.577), the exact inverse of presentation (0.719 vs 0.801). It is an anchor detector. An anchor residue points down into the HLA groove — **the T-cell never sees it.** A high-DAI candidate is disproportionately likely to be exactly the wrong kind of neoantigen.
+
+**One measurement of ours disagrees with that story.** Within the presented set, anchor mutations reach **4.23%** precision against **3.37%** for TCR-facing — the inverse of what the mechanism predicts. Presentation scoring may already be absorbing the anchor signal, or the cell is too small to read. We flag it rather than resolve it; see `docs/BENCHMARKS.md` §1.1.
 
 **Fix:** demoted to an annotation, displayed with the mutation position beside it so the reader can see which kind it is.
 

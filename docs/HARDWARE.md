@@ -232,11 +232,21 @@ That 100/hour figure is the useful one for a claim about practicality: a tumour 
 
 Candidates are independent jobs. There is no gradient to synchronise and no shared state, so more Nanos is a work queue, not a rewrite:
 
-| Nodes | Candidates/hour | Status |
-|---|---|---|
-| 1 | **100** | **measured** |
-| 2 | ~200 | projection |
-| 4 | ~400 | projection |
+| Nodes | Candidates/hour | Efficiency | Status |
+|---|---|---|---|
+| 1 | **56** | — | **measured**, one candidate at a time |
+| 1 | **100** | — | **measured**, batched |
+| 2 | 200 | 100% | projection |
+| 4 | **367** | **92%** | projection |
+
+Four nodes is **367/hour, not 400**, and the shortfall is not a bandwidth guess — it is
+integer arithmetic. A realistic shortlist is **22 candidates**; four nodes process it in
+⌈22/4⌉ = 6 rounds, and the last round runs only 2 of 4 nodes. That is 22/24 = **92%**
+granularity efficiency before a single packet crosses the wire. Two nodes divide 22 into
+11 + 11 exactly, so they scale cleanly. The dashboard computes this from the same measured
+batched throughput rather than multiplying, which is why the UI and this table now agree —
+they disagreed by 2× until we reconciled them, and the honest reading of that is that a
+projection is easy to state twice and get different answers.
 
 **We had one Nano.** Every multi-node number in the UI is labelled a projection, and there is a reason to be careful even about linear scaling. Published DGX Spark cluster work measures **NCCL all-reduce bus bandwidth at ~10.2 GB/s — about 40% of raw RDMA** — because GPUDirect RDMA does not engage, so tensor data makes an extra hop through system memory. That is a serious constraint for *distributed inference on one model*. It is close to irrelevant for *independent jobs on a queue*, which is our case — but the distinction is exactly the kind of thing that separates a projection you can defend from one you cannot.
 

@@ -179,3 +179,57 @@ def describe(scene: str, cues, dur: float) -> str:
             f"  {'':10} {'':5} | {i+1} {c['region']:16} {c['t']:5.2f}s  \"{c['phrase'][:34]}\""
             for i, c in enumerate(cues)]
     return "\n".join(rows)
+
+
+# ------------------------------------------------------------------ self-check
+# `python scripts/video_plates.py --check` validates the whole pointer contract
+# without rendering a frame: every capture measured, every region present, every
+# narration phrase verbatim, every cue ordering monotonic. This is the cheap
+# version of what the build asserts, so a broken cue is caught in a second
+# rather than thirteen minutes into a render.
+def check() -> int:
+    import re as _re
+    import video_scenes as S
+
+    nar = (ROOT / "video" / "narration.txt").read_text()
+    scenes = {sid: " ".join(l.strip() for l in body.strip().split("\n")
+                            if l.strip() and not l.strip().startswith("#"))
+              for sid, _note, body in _re.findall(
+                  r'^@ (\S+) \| (.*?)$\n(.*?)(?=^@ |\Z)', nar, _re.S | _re.M)}
+
+    bad = []
+    for scene, (capture, cues) in S.CUES.items():
+        if capture not in _REG:
+            bad.append(f"{scene}: capture {capture!r} has no measured regions")
+            continue
+        if not (IMG := ROOT / "docs" / "img" / capture).exists():
+            bad.append(f"{scene}: {IMG.relative_to(ROOT)} missing on disk")
+        measured = _REG[capture]["regions"]
+        if scene not in scenes:
+            bad.append(f"{scene}: no '@ {scene}' block in video/narration.txt")
+        for i, c in enumerate(cues, 1):
+            if c["region"] not in measured:
+                bad.append(f"{scene} cue {i}: region {c['region']!r} not measured "
+                           f"in {capture} (have: {', '.join(sorted(measured))})")
+            if scene in scenes and c["phrase"] not in scenes[scene]:
+                bad.append(f"{scene} cue {i}: phrase {c['phrase']!r} is not "
+                           f"verbatim in the narration — a marker would land on "
+                           f"a word that is never said")
+        if scene in scenes and not bad:
+            ts = [c["t"] for c in plan(cues, scenes[scene], 10.0)]
+            if ts != sorted(ts):
+                bad.append(f"{scene}: cue times not monotonic: {ts}")
+
+    for line in bad:
+        print(f"  ✗ {line}")
+    n = sum(len(c) for _cap, c in S.CUES.values())
+    print(f"{'FAIL' if bad else 'ok'}: {len(S.CUES)} scenes, {n} cues, "
+          f"{len(bad)} problem{'' if len(bad) == 1 else 's'}")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    import sys
+    if "--check" in sys.argv:
+        raise SystemExit(check())
+    raise SystemExit("usage: video_plates.py --check")

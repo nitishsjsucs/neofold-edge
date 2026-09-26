@@ -213,6 +213,15 @@ Bjerregaard, same ranker: k=25 → **16%** (5.9×); k=50 → 14%; k=100 → 14%.
 | **OURS** (presentation ≥ 0.10 AND ≤ 500 nM) | 1,370 | 49 | **92.5%** | 1.314× |
 | **DAI ≥ 2 alone** | 495 | 13 | 24.5% | **0.965× — worse than random** |
 
+**⚠ Say "as a standalone gate" every time you say this.** [M] Conditional on presentation
+(within the 1,370 our rule keeps, 3.58% baseline), a strict **DAI ≥ 10** reaches **4.90%**
+precision on 204 candidates — the differential is a weak *re-ranker*, and our mistake was the
+role and the threshold, not the whole idea. **And** anchor mutations out-precision TCR-facing
+ones there (**4.23%** vs **3.37%**), which contradicts the mechanism in §5.4. Small *n*; we
+claim nothing from it. If a slide says "DAI does not work" with no qualifier, it overstates
+what we measured — fix the slide. Source: `benchmarks/screen_validation.json` →
+`conditional_on_presentation`.
+
 Our rule is deliberately loose: lower enrichment, but it keeps **92.5%** of responders against
 62.3% for a 50 nM cut. A triage stage should be recall-first — a candidate discarded there cannot
 be recovered by any downstream evidence.
@@ -330,7 +339,7 @@ failure point. **Prioritisation is.**
 
 ### 5.11 Codebase
 
-101 tests passing · 12 modules, 2,493 lines · 16 API endpoints · ~12,700 lines of sourced research
+124 tests passing · 12 modules, 2,493 lines · 16 API endpoints · ~12,700 lines of sourced research
 notes · 28 visual assets.
 
 ---
@@ -343,7 +352,7 @@ to say out loud in a short talk.
 
 | # | Error | How it was caught | Resolution |
 |---|---|---|---|
-| ★1 | Shipped a filter **worse than random** — DAI ≥ 2, enrichment **0.965×** | Validation against 1,947 assay outcomes | Demoted to an annotation. The differential mostly detects *anchor* mutations, which are the ones T-cells are least likely to see. |
+| ★1 | Shipped a filter **worse than random as a standalone gate** — DAI ≥ 2, enrichment **0.965×** | Validation against 1,947 assay outcomes | Demoted to an annotation. The differential mostly detects *anchor* mutations, which are the ones T-cells are least likely to see. **Qualify it:** conditional on presentation, DAI ≥ 10 does lift precision 3.58% → 4.90% (n=204). Wrong role and threshold, not zero signal. |
 | ★2 | Accuracy claim was **3× optimistic** — we quoted 0.42 Å, which must **never** be used as the accuracy | Both validation crystals predate the training cutoff, so that is a training-set figure | Re-measured on 9 held-out structures: **1.41 Å** |
 | ★3 | Labelled **a normal human peptide** a tumour target | Built the self-similarity filter afterwards | `ICDFGLARV` (KIT D816V) is verbatim ERK2; the DFG motif is conserved across the kinome. **Kept in the demo as a negative control.** |
 | 4 | Near-self metric was **vacuous** | It flagged everything | Every missense neoepitope is one mismatch from its own germline peptide. Now excluded. |
@@ -411,7 +420,16 @@ All in `docs/img/`. **Prefer these over generating new artwork** — they are re
 `diagram-{overview,gates,governance,pipeline,timeline,hardware,scaling}.{light,dark}.svg`
 
 Regenerate any of them with `python3 scripts/diagrams.py`. Regenerate screenshots with
-`./scripts/screenshots.sh` (needs the app running).
+`./scripts/screenshots.sh` (needs the app running) regenerates **8 of the 16** PNGs:
+`dashboard`, `candidates`, `structure`, and the five `evidence-*`. Each is driven by a deep-link
+URL, so they are reproducible without hand-driving the UI.
+
+The other three — `app-full`, `app-holdout`, `app-summary`, which the **video** uses — are *not*
+in that script. They are full-page captures taken at **1500 CSS px wide, device scale 2**, and the
+element positions inside them are recorded in `video/app-regions.json` (measured with
+`getBoundingClientRect`, see `scripts/measure_regions.md`). The video build asserts every cue's
+region exists there, so if you re-capture at a different viewport the regions must be re-measured
+or the build fails loudly. **Do not re-capture these casually.**
 
 ---
 

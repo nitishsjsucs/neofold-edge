@@ -110,6 +110,7 @@ def evaluate(scored, rules):
 def main():
     from neofold.screen import damped_dai
 
+    extra: dict = {}
     rows = load_rows()
     print(f"loaded {len(rows)} usable rows; scoring with MHCflurry by allele...")
     scored = score_all(rows)
@@ -139,21 +140,40 @@ def main():
     presented = [s for s in scored if s["presentation"] >= 0.10 and s["affinity"] <= 500]
     if presented:
         p_pos = sum(s["responder"] for s in presented)
+        # CONDITIONAL ON PRESENTATION -- and this cuts against our own headline.
+        # DAI fails as a STANDALONE gate, but once presentation has filtered,
+        # DAI >= 10 does lift precision. Reporting only the standalone failure
+        # would be the convenient half of our own measurement, so this is
+        # persisted to JSON rather than left in stdout where no doc can see it.
         print(f"\nwithin the {len(presented)} presented candidates ({p_pos} responders):")
+        conditional = []
         for label, fn in [("DAI >= 10", lambda s: s["dai"] >= 10),
                           ("DAI >= 2", lambda s: s["dai"] >= 2),
                           ("anchor mutation", lambda s: s["anchor"]),
                           ("TCR-facing mutation", lambda s: not s["anchor"])]:
             sub = [s for s in presented if fn(s)]
-            f = sum(s["responder"] for s in sub)
-            print(f"   {label:24} {len(sub):4} kept, {f:3} responders, "
-                  f"precision {f/len(sub) if sub else 0:.1%} "
+            hits = sum(s["responder"] for s in sub)
+            prec = hits / len(sub) if sub else 0.0
+            conditional.append({"rule": label, "kept": len(sub), "found": hits,
+                                "precision": round(prec, 5)})
+            print(f"   {label:24} {len(sub):4} kept, {hits:3} responders, "
+                  f"precision {prec:.1%} "
                   f"(vs {p_pos/len(presented):.1%} for all presented)")
+        extra["conditional_on_presentation"] = {
+            "presented": len(presented), "responders": p_pos,
+            "baseline_precision": round(p_pos / len(presented), 5),
+            "rules": conditional,
+            "note": ("DAI fails as a standalone gate but adds precision once "
+                     "presentation has filtered. Any claim that 'DAI does not "
+                     "work' must say STANDALONE or it overstates what we "
+                     "measured."),
+        }
 
     out = ROOT / "benchmarks" / "screen_validation.json"
     out.write_text(json.dumps(
         {"benchmark": "Bjerregaard 2017 (PMC5694748)", "n_pairs": n,
-         "n_responders": pos, "base_rate": round(base, 5), "rules": results},
+         "n_responders": pos, "base_rate": round(base, 5), "rules": results,
+         **extra},
         indent=2))
     print(f"\nwrote {out.relative_to(ROOT)}")
 

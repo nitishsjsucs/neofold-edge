@@ -75,7 +75,7 @@ DAI works *better* on anchor mutations and *worse* on TCR-facing ones — the ex
 
 **A high-DAI candidate is disproportionately likely to be exactly the wrong kind of neoantigen.** That is not an argument from theory; it is what the stratified measurement says.
 
-We shipped DAI ≥ 2 as a filter in an early version. Enrichment: **0.965× — worse than picking at random.** It is now an annotation with the mutation position printed next to it.
+We shipped DAI ≥ 2 as a filter in an early version. Enrichment: **0.965× — worse than picking at random** for that threshold used as a standalone gate. (Conditional on presentation a strict DAI ≥ 10 does lift precision 3.58% → 4.90%, on 204 candidates — so the fair verdict is *wrong role, wrong threshold*, not *no signal*. Both halves: `docs/BENCHMARKS.md` §1.1.) It is now an annotation with the mutation position printed next to it.
 
 ### 3.2 "Require the gene to be expressed"
 

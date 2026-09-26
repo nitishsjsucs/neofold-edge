@@ -75,3 +75,56 @@ def test_no_stale_accuracy_claim(brief):
         guard = r"never|not\b|training-set|memorised|memorized|do not|3. optimistic"
         assert re.search(guard, window, re.I), (
             "0.42 Å appears without the warning that it is a training-set figure")
+
+
+# --------------------------------------------------- docs vs the live dashboard
+# These two disagreed by 2x once (docs said ~400 candidates/hour at four nodes,
+# the dashboard computed 367) because each derived the projection independently.
+# A judge reading the README next to the screen would have seen it. Pinned.
+def _node_rows():
+    import sys
+    sys.path.insert(0, str(ROOT))
+    import app.main as main
+    return {r["label"]: r for r in main.benchmark()["projected"]["nodes"]}
+
+
+def test_hardware_doc_matches_the_dashboard_projection():
+    rows = _node_rows()
+    hw = (ROOT / "docs" / "HARDWARE.md").read_text()
+    four = rows["4 nodes"]
+    assert str(four["candidates_per_hour"]) in hw, (
+        f"docs/HARDWARE.md does not state the dashboard's 4-node figure "
+        f"({four['candidates_per_hour']}/hour)")
+    assert f"{four['efficiency_pct']}%" in hw
+    assert "~400" not in hw, "the old unreconciled projection is back"
+
+
+def test_multi_node_rows_are_labelled_projections():
+    for label, row in _node_rows().items():
+        if row["nodes"] > 1:
+            assert row["measured"] is False, (
+                f"{label} is not marked a projection — we had one Nano")
+
+
+def test_test_count_claims_match_reality():
+    """The README badge is the first number a judge reads."""
+    import re
+    import subprocess
+    import sys
+    # -o addopts= resets the pyproject default; without it the inherited -q
+    # makes this -qq, which prints per-file counts and NO total -- the regex
+    # then misses, the test skips, and the drift it exists to catch sails through.
+    r = subprocess.run([sys.executable, "-m", "pytest", "--collect-only",
+                        "-o", "addopts=", "-q", "-p", "no:warnings"],
+                       cwd=ROOT, capture_output=True, text=True)
+    m = re.search(r"(\d+) tests? collected", r.stdout)
+    assert m, ("could not count collected tests -- fix this rather than skipping, "
+               f"or the count claims go unchecked.\n{r.stdout[-500:]}")
+    n = int(m.group(1))
+    for doc in ["README.md", "docs/ARCHITECTURE.md", "docs/BENCHMARKS.md",
+                "docs/AGENT-BRIEF.md"]:
+        for stale in re.findall(r"(\d+)[ _]tests?[ _]?(?:passing|collected)?",
+                               (ROOT / doc).read_text()):
+            if stale.isdigit() and 50 < int(stale) < 1000:
+                assert int(stale) == n, (
+                    f"{doc} claims {stale} tests, pytest collects {n}")
