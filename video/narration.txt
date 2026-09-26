@@ -1,56 +1,55 @@
 # Narration for the 2-minute demo video.
 #
-# Lines starting with '#' are comments. Each scene is "@ id | shot note" followed
-# by its spoken text. scripts/make_video.py renders one audio clip per scene and
-# times the visuals to the measured clip length, so scenes can be re-recorded
-# individually without rebuilding the whole film.
+# Each scene is "@ id | shot note" followed by its spoken text; the id matches a
+# renderer in scripts/video_scenes.py. scripts/make_video.py renders one clip per
+# scene and times that scene's animation to the measured clip length, so a line
+# can be rewritten and re-recorded without touching the rest of the film.
 #
-# Written for Piper, so numbers and units are spelled the way they should be
-# SPOKEN, not the way they are written in the docs: "two and a half angstroms",
-# not "2.5 Å".
+# Written to be HEARD, not read: contractions, short sentences, varied openings,
+# and numbers spelled the way they should be spoken ("two and a half angstroms",
+# not "2.5 Å"). Say "the Nano", never "the box".
 
-@ meta | tooling card -- the joke is that the voice saying this is the proof
-Quick note before we start. We thought it would be funny to make the video on
-the Nano as well. So this voice, the music, the diagrams, and every single
-frame were generated on the box. No cloud. Obviously.
+@ meta | tooling card -- the voice reading this is itself the evidence
+Quick thing first. We thought it'd be funny to make this video on the Nano too.
+So this voice, the music, every frame -- all of it came off that machine.
+Obviously.
 
-@ hook | title card, then the Rosie facts as type
-In twenty twenty-four, a dog named Rosie was dying of cancer. Her owner is a
-machine learning engineer, not a biologist. He had her tumour sequenced, used
-A.I. to find the mutations that mattered, and designed her a vaccine. Her
-largest tumour shrank by three quarters.
+@ hook | Rosie, then the 75% counting up
+In twenty twenty-four, a dog named Rosie was dying of cancer. Her owner isn't a
+biologist -- he's a machine learning engineer. He had her tumour sequenced, used
+AI to find the mutations that mattered, and designed her a vaccine. Her biggest
+tumour shrank by three quarters.
 
-@ question | governance diagram: cloud path versus edge path
-So why can't every hospital do this? Because the input is a human genome. It
-identifies the patient, and it partly identifies their family. In most places,
-it cannot legally leave the building.
+@ question | eight cloud steps stacking up against one
+So why can't every hospital do that? Here's the catch. The input is a human
+genome. It identifies the patient, and partly their family. In most places it
+can't legally leave the building. Sending it out doesn't cost a network hop. It
+costs weeks.
 
-@ problem | five gates diagram, then the base-rate card
-And the hard part was never making the vaccine. It is choosing what goes in it.
-One tumour throws up about nineteen hundred candidate fragments. Only a handful
-are real. In the largest trial ever run, six percent worked.
+@ problem | 1,890 dots dimming to the fifty that matter
+And the hard part was never making the vaccine. It's choosing what goes in it.
+One tumour throws up about nineteen hundred candidate fragments. Maybe fifty are
+real. In the largest trial ever run, of the best candidates anyone could
+nominate, six percent worked.
 
-@ build | pipeline diagram, then the live dashboard
-NeoFold Edge does that choosing, entirely offline, on one HP ZGX Nano. It
-screens all nineteen hundred in nine seconds. Cuts anything matching a healthy
-human protein. Folds the survivors in three dimensions. Stress-tests them with
-physics. Then explains each one in plain English.
+@ build | the funnel, actually funnelling
+That's what NeoFold Edge does. It screens all nineteen hundred in nine seconds.
+Cuts anything matching a healthy human protein. Folds the survivors in three
+dimensions on the GPU. Then explains every one in plain English.
 
-@ wow | SLOW ZOOM onto the flagged row in the candidate table
-This is why that second step matters. This candidate comes from KIT, a real
-cancer driver. By every conventional measure, it ranked first. It is also an
-exact match to a healthy human protein. A treatment aimed at it would attack
-the patient. Our filter caught it.
+@ wow | rows arrive anonymous, then the surround dims away
+Watch this one. It comes from KIT, a real cancer driver. By every conventional
+measure it ranked first. It's also an exact match to a healthy human protein.
+Target that, and you attack the patient. Our filter caught it.
 
-@ nano | hardware diagram
-Three neural networks and a physics engine, all resident at once. That needs a
-hundred and twenty-eight gigabytes of unified memory, and it draws thirty-eight
-watts. No rack. No cloud. Nothing leaves the room.
+@ nano | four model chips, memory bar, watts
+Four models, all live at once. Three neural networks and a physics engine. That
+takes a hundred and twenty-eight gigabytes of unified memory, and thirty-eight
+watts. About what a laptop pulls.
 
-@ proof | structure panel with the contact readout, then the run timeline
-Is it right? We predict one key atomic contact at two and a half angstroms. The
-crystal structure measures two point seven. One tumour takes about thirteen
-minutes.
+@ proof | 2.5 against 2.7, then the thirteen-minute bar
+Does it work? We predicted one key atomic contact at two and a half angstroms.
+The crystal says two point seven. A whole tumour takes about thirteen minutes.
 
-@ close | closing card: tagline and repo
-A cancer research lab that fits on a desk, and never phones home.
+@ close | tagline and repo
+A cancer research lab that fits on a desk. And never phones home.
