@@ -9,3 +9,4 @@ out/
 data/reference/*.fasta
 video/build/
 video/*.mp4
+.serve.log
